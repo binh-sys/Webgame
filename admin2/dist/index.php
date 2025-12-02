@@ -1,477 +1,1159 @@
-<?php 
+<?php
 require_once('ketnoi.php');
+ob_start();
+session_start();
 ?>
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <!-- Required meta tags -->
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>Bảng Quản Trị Tin Tức Game</title>
+<!doctype html>
+<html lang="vi">
 
-    <!-- plugins:css -->
-    <link rel="stylesheet" href="assets/vendors/simple-line-icons/css/simple-line-icons.css">
-    <link rel="stylesheet" href="assets/vendors/flag-icon-css/css/flag-icons.min.css">
-    <link rel="stylesheet" href="assets/vendors/css/vendor.bundle.base.css">
-    <!-- endinject -->
-    <!-- Plugin css for this page -->
-    <link rel="stylesheet" href="assets/vendors/font-awesome/css/font-awesome.min.css" />
-    <link rel="stylesheet" href="assets/vendors/bootstrap-datepicker/bootstrap-datepicker.min.css">
-    <link rel="stylesheet" href="assets/vendors/jvectormap/jquery-jvectormap.css">
-    <link rel="stylesheet" href="assets/vendors/daterangepicker/daterangepicker.css">
-    <link rel="stylesheet" href="assets/vendors/chartist/chartist.min.css">
-    <!-- End plugin css for this page -->
-    <!-- inject:css -->
-    <!-- endinject -->
-    <!-- Layout styles -->
-    <link rel="stylesheet" href="assets/css/vertical-light-layout/style.css">
-    <!-- End layout styles -->
-    <link rel="shortcut icon" href="assets/images/logogame.png" />
-    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GameNova Pro — Bảng Quản Trị</title>
 
-  </head>
-  <body>
-    <div class="container-scroller">
-      <div class="row p-0 m-0 proBanner" id="proBanner">
-        <div class="col-md-12 p-0 m-0">
-          <div class="card-body card-body-padding d-flex align-items-center justify-content-between">
-            <div class="ps-lg-1">
+  <!-- Icons -->
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+  <link rel="shortcut icon" href="assets/images/logogame.png" />
 
-            </div>
-            <div class="d-flex align-items-center justify-content-between">
-              <a href="https://www.bootstrapdash.com/product/stellar-admin-template/"><i class="icon-home me-3 text-white"></i></a>
-              <button id="bannerClose" class="btn border-0 p-0">
-                <i class="icon-close text-white me-0"></i>
-              </button>
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==========================
+     GameNova Pro — Neon Cyan & Deep Magenta (Arcade)
+     ========================== */
+
+    :root {
+      --bg-dark: #05030a;
+      --panel: rgba(6, 8, 14, 0.82);
+      --cyan: #00f6ff;
+      --magenta: #ff1bbf;
+      --accent-gradient: linear-gradient(90deg, var(--cyan), var(--magenta));
+      --glass: rgba(255, 255, 255, 0.03);
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      font-family: "Poppins", sans-serif;
+      background:
+        radial-gradient(circle at 10% 10%, #081026 0%, #030114 50%, #000007 100%);
+      color: #dff7ff;
+      -webkit-font-smoothing: antialiased
+    }
+
+    /* NAVBAR */
+    .navbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 72px;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(180deg, rgba(2, 6, 12, 0.7), rgba(2, 6, 12, 0.45));
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      z-index: 1200;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(0, 0, 0, 0.35) inset;
+    }
+
+    .brand-left {
+      display: flex;
+      align-items: center;
+      gap: 14px
+    }
+
+    .brand-left img {
+      height: 46px;
+      transition: transform .18s
+    }
+
+    .brand-left img:hover {
+      transform: scale(1.05)
+    }
+
+    .center-title {
+      color: var(--cyan);
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      font-family: "Orbitron", sans-serif
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 14px
+    }
+
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.06);
+      object-fit: cover;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6)
+    }
+
+    /* SIDEBAR */
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 260px;
+      height: 100vh;
+      padding-top: 86px;
+      background:
+        linear-gradient(180deg, #061225, #040417);
+      border-right: 1px solid rgba(255, 255, 255, 0.02);
+      box-shadow: inset -8px 0 36px rgba(0, 0, 0, 0.7);
+      z-index: 1100;
+      overflow: auto;
+    }
+
+    .sidebar.minimized {
+      width: 86px
+    }
+
+    .nav-profile {
+      text-align: center;
+      padding: 18px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.02)
+    }
+
+    .avatar-lg {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 3px solid rgba(255, 255, 255, 0.04);
+      box-shadow: 0 8px 26px rgba(255, 27, 191, 0.04)
+    }
+
+    .profile-name {
+      color: #fff;
+      font-weight: 700;
+      margin-top: 8px;
+      font-size: 15px
+    }
+
+    .designation {
+      color: rgba(255, 255, 255, 0.55);
+      font-size: 12px;
+      margin-top: 4px
+    }
+
+    .nav-category {
+      padding: 12px 18px
+    }
+
+    .nav-category span {
+      color: var(--cyan);
+      font-size: 12px;
+      text-transform: uppercase;
+      opacity: 0.95;
+      font-weight: 700
+    }
+
+    .menu-item {
+      margin: 8px 10px
+    }
+
+    .menu-link {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px;
+      border-radius: 12px;
+      color: #bfefff;
+      text-decoration: none;
+      transition: all .18s
+    }
+
+    .menu-link i {
+      font-size: 20px;
+      color: var(--cyan);
+      transition: all .18s
+    }
+
+    .menu-link div {
+      font-weight: 600
+    }
+
+    .menu-link:hover {
+      background: linear-gradient(90deg, rgba(0, 246, 255, 0.06), rgba(255, 27, 191, 0.04));
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
+      border-left: 4px solid var(--cyan);
+      transform: translateX(2px)
+    }
+
+    .menu-item.active .menu-link {
+      background: linear-gradient(90deg, rgba(255, 27, 191, 0.08), rgba(0, 246, 255, 0.06));
+      box-shadow: 0 12px 38px rgba(255, 27, 191, 0.05);
+      border-left: 4px solid var(--magenta);
+      color: #fff
+    }
+
+    .menu-item.active .menu-link i {
+      color: var(--magenta);
+      text-shadow: 0 0 10px var(--magenta)
+    }
+
+    .sidebar.minimized .menu-link div,
+    .sidebar.minimized .nav-category span,
+    .sidebar.minimized .profile-name,
+    .sidebar.minimized .designation {
+      display: none
+    }
+
+    .sidebar.minimized .menu-link i {
+      margin: 0 auto;
+      width: 100%;
+      text-align: center
+    }
+
+    /* PAGE BODY WRAPPER */
+    .page-body-wrapper {
+      margin-left: 260px;
+      padding-top: 86px;
+      transition: margin-left .28s
+    }
+
+    .sidebar.minimized+.page-body-wrapper {
+      margin-left: 86px
+    }
+
+    /* MAIN PANEL */
+    .main-panel {
+      margin: 22px 24px;
+      padding: 22px;
+      min-height: calc(100vh - 140px);
+      background:
+        linear-gradient(180deg, rgba(8, 10, 14, 0.6), rgba(2, 4, 8, 0.6));
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.02);
+      box-shadow: 0 14px 48px rgba(0, 0, 0, 0.6);
+    }
+
+    /* Layout helpers */
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      margin: 0 -12px
+    }
+
+    .col-md-3,
+    .col-md-6,
+    .col-md-12,
+    .col-lg-3 {
+      padding: 0 12px
+    }
+
+    .col-md-3 {
+      width: 25%
+    }
+
+    .col-md-6 {
+      width: 50%
+    }
+
+    .col-md-12,
+    .col-lg-12 {
+      width: 100%
+    }
+
+    @media (max-width: 992px) {
+      .col-md-3 {
+        width: 50%
+      }
+
+      .page-body-wrapper {
+        margin-left: 86px
+      }
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.01), rgba(0, 0, 0, 0.02));
+      border-radius: 12px;
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.02)
+    }
+
+    .neon-card {
+      background: linear-gradient(180deg, rgba(8, 10, 14, 0.75), rgba(6, 8, 12, 0.75));
+      border-radius: 12px;
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.02);
+      box-shadow: 0 6px 22px rgba(0, 0, 0, 0.6)
+    }
+
+    h4,
+    h5 {
+      margin: 0 0 8px 0;
+      color: #cfefff
+    }
+
+    /* STAT SQUARES */
+    .neon-card-square {
+      position: relative;
+      background: radial-gradient(circle at 8% 8%, rgba(0, 246, 255, 0.03), rgba(6, 8, 12, 0.9));
+      border-radius: 14px;
+      padding: 18px;
+      min-height: 150px;
+      overflow: hidden;
+      transition: transform .32s, box-shadow .32s;
+      border: 2px solid transparent;
+    }
+
+    .neon-card-square .icon {
+      font-size: 1.6rem;
+      display: inline-block;
+      margin-bottom: 6px
+    }
+
+    .neon-card-square h5 {
+      font-size: 0.95rem;
+      font-weight: 800;
+      letter-spacing: 0.6px
+    }
+
+    .neon-card-square h2 {
+      font-size: 2.4rem;
+      margin: 8px 0 6px;
+      color: #fff;
+      font-family: "Orbitron", sans-serif
+    }
+
+    .neon-card-square p {
+      color: rgba(255, 255, 255, 0.6);
+      margin: 0
+    }
+
+    .neon-card-square:hover {
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: 0 20px 48px rgba(255, 27, 191, 0.07), inset 0 0 40px rgba(0, 246, 255, 0.03)
+    }
+
+    .neon-card-square .neon-border::before {
+      filter: drop-shadow(0 0 10px var(--neon-color));
+    }
+
+    .neon-border {
+      position: absolute;
+      inset: 0;
+      border-radius: 14px;
+      pointer-events: none
+    }
+
+    .neon-border::before {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      border-radius: 14px;
+      border: 2px solid var(--neon-color);
+      animation: neon-scan 4s linear infinite;
+      opacity: 0.92
+    }
+
+    @keyframes neon-scan {
+      0% {
+        clip-path: polygon(0 0, 0 0, 0 0, 0 0);
+        opacity: 0
+      }
+
+      10% {
+        clip-path: polygon(0 0, 100% 0, 0 0, 0 0);
+        opacity: 1
+      }
+
+      40% {
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+        opacity: 1
+      }
+
+      70% {
+        clip-path: polygon(0 100%, 100% 100%, 100% 0, 0 0);
+        opacity: 0.9
+      }
+
+      100% {
+        clip-path: polygon(0 0, 0 0, 0 0, 0 0);
+        opacity: 0
+      }
+    }
+
+    /* BUTTONS */
+    .neon-btn {
+      display: inline-block;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-weight: 700;
+      color: #002;
+      text-decoration: none;
+      margin: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      transition: all .18s;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6)
+    }
+
+    .neon-btn.blue {
+      background: linear-gradient(90deg, var(--cyan), #4db8ff);
+      box-shadow: 0 14px 36px rgba(0, 246, 255, 0.08);
+      color: #001
+    }
+
+    .neon-btn.purple {
+      background: linear-gradient(90deg, #b36bff, var(--magenta));
+      color: #fff;
+      box-shadow: 0 14px 36px rgba(255, 27, 191, 0.08)
+    }
+
+    .neon-btn.green {
+      background: linear-gradient(90deg, #00ffa3, #66ffc3);
+      box-shadow: 0 14px 36px rgba(0, 255, 163, 0.06);
+      color: #001
+    }
+
+    .neon-btn.pink {
+      background: linear-gradient(90deg, #ff8fd1, var(--magenta));
+      box-shadow: 0 14px 36px rgba(255, 27, 191, 0.08);
+      color: #001
+    }
+
+    .neon-btn:hover {
+      transform: translateY(-6px);
+      filter: saturate(1.08);
+      box-shadow: 0 22px 50px rgba(255, 27, 191, 0.12)
+    }
+
+    /* CHARTS */
+    .card canvas {
+      width: 100% !important;
+      height: 320px !important;
+      display: block
+    }
+
+    @media (max-width:1200px) {
+      .card canvas {
+        height: 300px !important
+      }
+    }
+
+    @media (max-width:768px) {
+      .card canvas {
+        height: 260px !important
+      }
+    }
+
+    /* TABLE */
+    .table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0 8px
+    }
+
+    .table thead th {
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--cyan);
+      font-weight: 700;
+      padding: 10px;
+      border: none
+    }
+
+    .table tbody tr {
+      background: rgba(255, 255, 255, 0.02);
+      transition: transform .12s
+    }
+
+    .table tbody tr:hover {
+      transform: translateY(-6px);
+      background: rgba(255, 255, 255, 0.02)
+    }
+
+    /* ALERT */
+    .alert {
+      border-radius: 10px;
+      padding: 12px 14px;
+      text-align: center;
+      background: linear-gradient(90deg, rgba(0, 246, 255, 0.06), rgba(255, 27, 191, 0.04));
+      border: 1px solid rgba(0, 246, 255, 0.12);
+      color: #eaffff
+    }
+
+    /* FOOTER */
+    .footer {
+      position: fixed;
+      bottom: 0;
+      left: 260px;
+      width: calc(100% - 260px);
+      padding: 12px 16px;
+      background: linear-gradient(90deg, rgba(3, 6, 10, 0.8), rgba(6, 8, 12, 0.8));
+      color: #9fefff;
+      border-top: 1px solid rgba(255, 255, 255, 0.02)
+    }
+
+    .sidebar.minimized+.page-body-wrapper .footer {
+      left: 86px;
+      width: calc(100% - 86px)
+    }
+
+    /* small screens */
+    @media (max-width:992px) {
+      .sidebar {
+        left: 0
+      }
+
+      .page-body-wrapper {
+        margin-left: 86px;
+        padding-top: 86px
+      }
+
+      .footer {
+        left: 86px;
+        width: calc(100% - 86px)
+      }
+
+      .center-title {
+        display: none
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container-scroller">
+
+    <!-- NAVBAR -->
+    <nav class="navbar">
+      <div class="brand-left">
+        <a href="index.php"><img src="assets/images/logogame.png" alt="logo"></a>
+        <div class="center-title">GameNova Pro — Bảng điều khiển</div>
+      </div>
+
+      <div class="nav-right">
+        <button id="toggleSidebar" class="btn" title="Thu/Phóng sidebar" style="background:transparent;border:none;color:#9fefff;font-size:18px">☰</button>
+        <img class="avatar" src="assets/images/faces/face.png" alt="avatar">
+      </div>
+    </nav>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar" id="sidebar">
+      <div class="nav-profile">
+        <img class="avatar-lg" src="assets/images/faces/face.png" alt="profile">
+        <div class="profile-name">Mr.Binh</div>
+        <div class="designation">Quản Trị Viên</div>
+      </div>
+
+      <div class="nav-category"><span>Trang Quản Trị</span></div>
+      <div class="menu-item <?php if (!isset($_GET['page_layout'])) echo 'active'; ?>">
+        <a class="menu-link" href="index.php"><i class='bx bx-home'></i>
+          <div>Trang Tổng Quan</div>
+        </a>
+      </div>
+
+      <div class="nav-category"><span>Quản Lý</span></div>
+      <div class="menu-item <?php if (isset($_GET['page_layout']) && $_GET['page_layout'] == 'danhsachbaiviet') echo 'active'; ?>">
+        <a class="menu-link" href="?page_layout=danhsachbaiviet"><i class='bx bx-news'></i>
+          <div>Bài Viết</div>
+        </a>
+      </div>
+      <div class="menu-item <?php if (isset($_GET['page_layout']) && $_GET['page_layout'] == 'danhsachchuyenmuc') echo 'active'; ?>">
+        <a class="menu-link" href="?page_layout=danhsachchuyenmuc"><i class='bx bx-category-alt'></i>
+          <div>Chuyên Mục</div>
+        </a>
+      </div>
+      <div class="menu-item <?php if (isset($_GET['page_layout']) && $_GET['page_layout'] == 'danhsachthegame') echo 'active'; ?>">
+        <a class="menu-link" href="?page_layout=danhsachthegame"><i class='bx bx-joystick'></i>
+          <div>Thẻ Game</div>
+        </a>
+      </div>
+      <div class="menu-item <?php if (isset($_GET['page_layout']) && $_GET['page_layout'] == 'danhsachbinhluan') echo 'active'; ?>">
+        <a class="menu-link" href="?page_layout=danhsachbinhluan"><i class='bx bx-message-dots'></i>
+          <div>Bình Luận</div>
+        </a>
+      </div>
+      <div class="menu-item <?php if (isset($_GET['page_layout']) && $_GET['page_layout'] == 'danhsachyeuthich') echo 'active'; ?>">
+        <a class="menu-link" href="?page_layout=danhsachyeuthich"><i class='bx bx-heart'></i>
+          <div>Yêu Thích</div>
+        </a>
+      </div>
+      <div class="menu-item <?php if (isset($_GET['page_layout']) && $_GET['page_layout'] == 'danhsachlienthethegame') echo 'active'; ?>">
+        <a class="menu-link" href="?page_layout=danhsachlienthethegame"><i class='bx bx-link-alt'></i>
+          <div>Liên Kết Thẻ</div>
+        </a>
+      </div>
+
+      <div class="nav-category"><span>Quản lý Người Dùng</span></div>
+      <div class="menu-item <?php if (isset($_GET['page_layout']) && $_GET['page_layout'] == 'danhsachnguoidung') echo 'active'; ?>">
+        <a class="menu-link" href="?page_layout=danhsachnguoidung"><i class='bx bx-user-circle'></i>
+          <div>Người Dùng</div>
+        </a>
+      </div>
+      <div class="menu-item <?php if (isset($_GET['page_layout']) && $_GET['page_layout'] == 'danhsachtacgia') echo 'active'; ?>">
+        <a class="menu-link" href="?page_layout=danhsachtacgia"><i class='bx bx-id-card'></i>
+          <div>Tác Giả</div>
+        </a>
+      </div>
+    </nav>
+
+    <!-- PAGE BODY WRAPPER -->
+    <div class="page-body-wrapper">
+      <!-- notifications -->
+      <div style="position:fixed; top:86px; left:50%; transform:translateX(-50%); z-index:1300; width:48%;">
+        <?php if (isset($_SESSION['message'])): ?>
+          <div class="alert"><?= $_SESSION['message'];
+                              unset($_SESSION['message']); ?></div>
+        <?php elseif (isset($_SESSION['error'])): ?>
+          <div class="alert" style="background:linear-gradient(90deg, rgba(255,27,191,0.06), rgba(0,246,255,0.03));"><?= $_SESSION['error'];
+                                                                                                                      unset($_SESSION['error']); ?></div>
+        <?php endif; ?>
+      </div>
+
+      <!-- MAIN CONTENT (if page_layout -> include files; else show dashboard content) -->
+      <div class="main-panel">
+        <?php
+        if (isset($_GET["page_layout"])) {
+          switch ($_GET["page_layout"]) {
+            case "danhsachbaiviet":
+              require_once 'articles.php';
+              break;
+            case "them_baiviet":
+              require_once 'them_baiviet.php';
+              break;
+            case "sua_baiviet":
+              require_once 'sua_baiviet.php';
+              break;
+            case "xoa_baiviet":
+              require_once 'xoa_baiviet.php';
+              break;
+            case "duyet_baiviet":
+              require_once 'duyet_baiviet.php';
+              break;
+
+            case "danhsachchuyenmuc":
+              require_once 'categories.php';
+              break;
+            case "themchuyenmuc":
+              require_once 'themchuyenmuc.php';
+              break;
+            case "suachuyenmuc":
+              require_once 'suachuyenmuc.php';
+              break;
+            case "xoachuyenmuc":
+              require_once 'xoachuyenmuc.php';
+              break;
+
+            case "danhsachthegame":
+              require_once 'tags.php';
+              break;
+            case "themthegame":
+              require_once 'themthegame.php';
+              break;
+            case "suathegame":
+              require_once 'suathegame.php';
+              break;
+            case "xoathegame":
+              require_once 'xoathegame.php';
+              break;
+
+            case "danhsachbinhluan":
+              require_once 'comments.php';
+              break;
+            case "thembinhluan":
+              require_once 'thembinhluan.php';
+              break;
+            case "suabinhluan":
+              require_once 'suabinhluan.php';
+              break;
+            case "xoabinhluan":
+              require_once 'xoabinhluan.php';
+              break;
+
+            case "danhsachyeuthich":
+              require_once 'favorites.php';
+              break;
+            case "themyeuthich":
+              require_once 'themyeuthich.php';
+              break;
+            case "suayeuthich":
+              require_once 'suayeuthich.php';
+              break;
+            case "xoayeuthich":
+              require_once 'xoayeuthich.php';
+              break;
+
+            case "danhsachlienthethegame":
+              require_once 'article_tags.php';
+              break;
+            case "themlienthethegame":
+              require_once 'themlienthethegame.php';
+              break;
+            case "sualienthethegame":
+              require_once 'sualienthethegame.php';
+              break;
+            case "xoalienthethegame":
+              require_once 'xoalienthethegame.php';
+              break;
+
+            case "danhsachnguoidung":
+              require_once 'users.php';
+              break;
+            case "themus":
+              require_once 'themus.php';
+              break;
+            case "suaus":
+              require_once 'suaus.php';
+              break;
+            case "xoaus":
+              require_once 'xoaus.php';
+              break;
+
+            case "danhsachtacgia":
+              require_once 'authors.php';
+              break;
+            case "themtacgia":
+              require_once 'themtacgia.php';
+              break;
+            case "suatacgia":
+              require_once 'suatacgia.php';
+              break;
+            case "xoatacgia":
+              require_once 'xoatacgia.php';
+              break;
+
+            default:
+              require_once 'content.php';
+              break;
+          }
+        } else {
+          /* -------- DASHBOARD CONTENT INLINE (so index.php is standalone) -------- */
+
+          // Ensure DB connection present (already required above)
+          // Statistics
+          $total_articles  = (int)($ketnoi->query("SELECT COUNT(*) AS total FROM articles")->fetch_assoc()['total'] ?? 0);
+          $total_users     = (int)($ketnoi->query("SELECT COUNT(*) AS total FROM users")->fetch_assoc()['total'] ?? 0);
+          $total_comments  = (int)($ketnoi->query("SELECT COUNT(*) AS total FROM comments")->fetch_assoc()['total'] ?? 0);
+          $total_favorites = (int)($ketnoi->query("SELECT COUNT(*) AS total FROM favorites")->fetch_assoc()['total'] ?? 0);
+
+          // Charts data
+          $categories = $counts = [];
+          $q = $ketnoi->query("SELECT c.name AS category, COUNT(a.article_id) AS cnt FROM categories c LEFT JOIN articles a ON c.category_id=a.category_id GROUP BY c.category_id");
+          while ($r = $q->fetch_assoc()) {
+            $categories[] = $r['category'];
+            $counts[] = (int)$r['cnt'];
+          }
+
+          $roles = $role_counts = [];
+          $qr = $ketnoi->query("SELECT role, COUNT(user_id) AS total FROM users GROUP BY role");
+          while ($r = $qr->fetch_assoc()) {
+            $roles[] = ucfirst($r['role']);
+            $role_counts[] = (int)$r['total'];
+          }
+
+        ?>
+
+          <!-- DASHBOARD: STAT SQUARES (horizontal) -->
+          <div id="section-summary" class="row mb-4 justify-content-center text-center">
+            <?php
+            $cards = [
+              ['icon' => '📰', 'title' => 'BÀI VIẾT', 'count' => $total_articles, 'color' => 'var(--cyan)', 'desc' => 'Tổng số bài viết'],
+              ['icon' => '👤', 'title' => 'NGƯỜI DÙNG', 'count' => $total_users, 'color' => '#b36bff', 'desc' => 'Tổng tài khoản'],
+              ['icon' => '💬', 'title' => 'BÌNH LUẬN', 'count' => $total_comments, 'color' => '#00ffa3', 'desc' => 'Tổng bình luận'],
+              ['icon' => '❤️', 'title' => 'YÊU THÍCH', 'count' => $total_favorites, 'color' => 'var(--magenta)', 'desc' => 'Tổng lượt yêu thích']
+            ];
+            foreach ($cards as $index => $c): ?>
+              <div class="col-lg-3 col-md-6 col-sm-6 mb-4">
+                <div class="card neon-card-square animate-card" style="--delay:<?= $index * 0.08 ?>s; --neon-color: <?= $c['color'] ?>;">
+                  <div class="icon" style="color:<?= $c['color'] ?>;"><?= $c['icon'] ?></div>
+                  <h5 style="color:<?= $c['color'] ?>;"><?= $c['title'] ?></h5>
+                  <h2><?= $c['count'] ?></h2>
+                  <p class="text-muted small"><?= $c['desc'] ?></p>
+                  <span class="neon-border"></span>
+                </div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+
+          <!-- QUICK ACTIONS -->
+          <div class="row mb-4">
+            <div class="col-md-12">
+              <div class="card neon-card p-3">
+                <div style="display:flex;align-items:center;justify-content:space-between">
+                  <h5 class="text-glow">⚡ Quick Actions</h5>
+                  <small class="text-muted">Thao tác nhanh</small>
+                </div>
+                <div style="margin-top:12px;display:flex;flex-wrap:wrap;justify-content:center">
+                  <a class="neon-btn blue" href="#section-users">👤 Người dùng</a>
+                  <a class="neon-btn purple" href="#section-articles">📰 Bài viết</a>
+                  <a class="neon-btn green" href="#section-comments">💬 Bình luận</a>
+                  <a class="neon-btn pink" href="#section-favorites">❤️ Yêu thích</a>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-      <!-- partial:partials/_navbar.html -->
-      <nav class="navbar default-layout-navbar col-lg-12 col-12 p-0 fixed-top d-flex flex-row">
-        <div class="text-center navbar-brand-wrapper d-flex align-items-center justify-content-center">
-          <a class="navbar-brand brand-logo" href="index.php">
-         <img src="assets/images/logogame.png" alt="logo" class="logo-dark" style="width:220px; height:auto;" />
 
-          </a>
-          <a class="navbar-brand brand-logo-mini" href="index.php"><img src="assets/images/logogame.svg" alt="logo" /></a>
-          <button class="navbar-toggler navbar-toggler align-self-center" type="button" data-toggle="minimize">
-            <span class="icon-menu"></span>
-          </button>
-        </div>
-        <div class="navbar-menu-wrapper d-flex align-items-center">
-          <h5 class="mb-0 font-weight-medium d-none d-lg-flex">Chào mừng đến với bảng điều khiển!</h5>
-          <ul class="navbar-nav navbar-nav-right">
-            <form class="search-form d-none d-md-block" action="#">
-              <i class="icon-magnifier"></i>
-              <input type="search" class="form-control" placeholder="Search Here" title="Search here">
-            </form>
-            <li class="nav-item"><a href="#" class="nav-link"><i class="icon-basket-loaded"></i></a></li>
-            <li class="nav-item"><a href="#" class="nav-link"><i class="icon-chart"></i></a></li>
-            <li class="nav-item dropdown">
-              <a class="nav-link count-indicator message-dropdown" id="messageDropdown" href="#" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="icon-speech"></i>
-                <span class="count">7</span>
-              </a>
-              <div class="dropdown-menu dropdown-menu-right navbar-dropdown preview-list pb-0" aria-labelledby="messageDropdown">
-                <a class="dropdown-item py-3">
-                  <p class="mb-0 font-weight-medium float-start me-2">You have 7 unread mails </p>
-                  <span class="badge badge-pill badge-primary float-end">View all</span>
-                </a>
-                <div class="dropdown-divider"></div>
-                <a class="dropdown-item preview-item">
-                  <div class="preview-thumbnail">
-                    <img src="assets/images/faces/face10.jpg" alt="image" class="img-sm profile-pic">
+          <!-- CHARTS -->
+          <div class="row">
+            <div class="col-md-6">
+              <div class="card neon-card">
+                <div class="card-body">
+                  <h4 class="text-center text-glow">📊 Bài viết theo danh mục</h4>
+                  <div style="position:relative">
+                    <canvas id="chartCategories"></canvas>
                   </div>
-                  <div class="preview-item-content flex-grow py-2">
-                    <p class="preview-subject ellipsis font-weight-medium text-dark">Marian Garner </p>
-                    <p class="font-weight-light small-text"> The meeting is cancelled </p>
-                  </div>
-                </a>
-                <a class="dropdown-item preview-item">
-                  <div class="preview-thumbnail">
-                    <img src="assets/images/faces/face12.jpg" alt="image" class="img-sm profile-pic">
-                  </div>
-                  <div class="preview-item-content flex-grow py-2">
-                    <p class="preview-subject ellipsis font-weight-medium text-dark">David Grey </p>
-                    <p class="font-weight-light small-text"> The meeting is cancelled </p>
-                  </div>
-                </a>
-                <a class="dropdown-item preview-item">
-                  <div class="preview-thumbnail">
-                    <img src="assets/images/faces/face1.jpg" alt="image" class="img-sm profile-pic">
-                  </div>
-                  <div class="preview-item-content flex-grow py-2">
-                    <p class="preview-subject ellipsis font-weight-medium text-dark">Travis Jenkins </p>
-                    <p class="font-weight-light small-text"> The meeting is cancelled </p>
-                  </div>
-                </a>
+                </div>
               </div>
-            </li>
-            <li class="nav-item dropdown language-dropdown d-none d-sm-flex align-items-center">
-              <a class="nav-link d-flex align-items-center dropdown-toggle" id="LanguageDropdown" href="#" data-bs-toggle="dropdown" aria-expanded="false">
-                <div class="d-inline-flex">
-                  <i class="flag-icon flag-icon-us"></i>
-                </div>
-                <span class="profile-text font-weight-normal">English</span>
-              </a>
-              <div class="dropdown-menu dropdown-menu-left navbar-dropdown py-2" aria-labelledby="LanguageDropdown">
-                <a class="dropdown-item">
-                  <i class="flag-icon flag-icon-us"></i> English </a>
-                <a class="dropdown-item">
-                  <i class="flag-icon flag-icon-fr"></i> French </a>
-                <a class="dropdown-item">
-                  <i class="flag-icon flag-icon-ae"></i> Arabic </a>
-                <a class="dropdown-item">
-                  <i class="flag-icon flag-icon-ru"></i> Russian </a>
-              </div>
-            </li>
-            <li class="nav-item dropdown d-none d-xl-inline-flex user-dropdown">
-              <a class="nav-link dropdown-toggle" id="UserDropdown" href="#" data-bs-toggle="dropdown" aria-expanded="false">
-                <img class="img-xs rounded-circle ms-2" src="assets/images/faces/face.png" alt="Profile image"> <span class="font-weight-normal"> Mr.Binh </span></a>
-              <div class="dropdown-menu dropdown-menu-right navbar-dropdown" aria-labelledby="UserDropdown">
-                <div class="dropdown-header text-center">
-                  <img class="img-md rounded-circle" src="assets/images/faces/face8.jpg" alt="Profile image">
-                  <p class="mb-1 mt-3">Mr.Binh</p>
-                  <p class="font-weight-light text-muted mb-0">mrbinh@gmail.com</p>
-                </div>
-                <a class="dropdown-item"><i class="dropdown-item-icon icon-user text-primary"></i> Hồ sơ cá nhân <span class="badge badge-pill badge-danger">1</span></a>
-                <a class="dropdown-item"><i class="dropdown-item-icon icon-speech text-primary"></i> Tin nhắn</a>
-                <a class="dropdown-item"><i class="dropdown-item-icon icon-energy text-primary"></i> Hoạt động</a>
-                <a class="dropdown-item"><i class="dropdown-item-icon icon-question text-primary"></i> FAQ</a>
-                <a class="dropdown-item"><i class="dropdown-item-icon icon-power text-primary"></i>Đăng xuất</a>
-              </div>
-            </li>
-          </ul>
-          <button class="navbar-toggler navbar-toggler-right d-lg-none align-self-center" type="button" data-toggle="offcanvas">
-            <span class="icon-menu"></span>
-          </button>
-        </div>
-      </nav>
-      <!-- partial -->
-      <div class="container-fluid page-body-wrapper">
-        <!-- partial:partials/_sidebar.html -->
-        <nav class="sidebar sidebar-offcanvas" id="sidebar">
-          <ul class="nav">
-            <li class="nav-item navbar-brand-mini-wrapper">
-              <a class="nav-link navbar-brand brand-logo-mini" href="index.php"><img src="assets/images/logogame.png" alt="logo" /></a>
-            </li>
-            <li class="nav-item nav-profile">
-              <a href="#" class="nav-link">
-                <div class="profile-image">
-                  <img class="img-xs rounded-circle" src="assets/images/faces/face.png" alt="profile image">
-                  <div class="dot-indicator bg-success"></div>
-                </div>
-                <div class="text-wrapper">
-                  <p class="profile-name">Mr.Binh</p>
-                  <p class="designation">Quản Trị Viên</p>
-                </div>
-                <div class="icon-container">
-                  <i class="icon-bubbles"></i>
-                  <div class="dot-indicator bg-danger"></div>
-                </div>
-              </a>
-            </li>
-            <li class="nav-item nav-category">
-              <span class="nav-link">Trang Quản Trị</span>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="index.php">
-                <span class="menu-title">Trang tổng quan</span>
-                <i class="icon-screen-desktop menu-icon"></i>
-              </a>
-            </li>
-            <li class="nav-item nav-category"><span class="nav-link">Quản lý</span></li>
-    
-           <!-- Forms -->
-
-<li class="menu-item">
- <a href="?page_layout=danhsachbaiviet" class="menu-link">
-    <i class="bx bx-news"></i>
-    <div>Quản lý bài viết</div>
-  </a>
-</li>
-
-            <li class="menu-item">
-  <a href="?page_layout=danhsachchuyenmuc" class="menu-link">
-    <i class="menu-icon tf-icons bx bx-book-content"></i>
-    <div>Chuyên mục</div>
-  </a>
-</li>
-
-           <li class="menu-item">
-  <a href="?page_layout=danhsachthegame" class="menu-link">
-    <i class="menu-icon tf-icons bx bx-purchase-tag-alt"></i>
-    <div>Thẻ game</div>
-  </a>
-</li>
-
-            
-           <li class="menu-item">
-  <a href="?page_layout=danhsachbinhluan" class="menu-link">
-    <i class="menu-icon tf-icons bx bx-purchase-tag"></i>
-    <div>Bình Luận</div>
-  </a>
-</li>
-           <li class="menu-item">
-  <a href="?page_layout=danhsachyeuthich" class="menu-link">
-    <i class="menu-icon tf-icons bx bx-purchase-tag"></i>
-    <div>Yêu Thích</div>
-  </a>
-</li>
-
-            <li class="menu-item">
-  <a href="?page_layout=danhsachlienthethegame" class="menu-link">
-    <i class="menu-icon tf-icons bx bx-purchase-tag"></i>
-    <div>Liên Kết Thẻ Game</div>
-  </a>
-</li>
-
-<li class="nav-item nav-category"><span class="nav-link">Quản lý Người Dùng</span></li>
-            <li class="menu-item">
-  <a href="?page_layout=danhsachnguoidung" class="menu-link">
-    <i class="menu-icon tf-icons bx bx-user"></i>
-    <div>Người Dùng</div>
-  </a>
-</li>
-          <li class="menu-item">
-  <a href="?page_layout=danhsachtacgia" class="menu-link">
-    <i class="menu-icon tf-icons bx bx-user"></i>
-    <div>Tác Giả</div>
-  </a>
-</li>
-
-            <li class="nav-item nav-category"><span class="nav-link">Help</span></li>
-          
-                
-              </a>
-            </li>
-          </ul>
-        </nav>
-
-       <?php
-if (isset($_GET["page_layout"])) {
-  switch ($_GET["page_layout"]) {
-    case "danhsachbaiviet":
-  require_once 'articles.php';
-  break;
-    case "danhsachchuyenmuc":
-  require_once 'categories.php';
-  break;
-    case "danhsachthegame":
-  require_once 'tags.php';
-  break;
-   case "danhsachbinhluan":
-  require_once 'comments.php';
-  break;
-   case "danhsachyeuthich":
-  require_once 'favorites.php';
-  break;
-   case "danhsachnguoidung":
-  require_once 'users.php';
-  break;
-    case "danhsachtacgia":
-  require_once 'authors.php';
-  break;
-     case "danhsachlienthethegame":
-  require_once 'article_tags.php';
-  break;
-  }
-} else {
-  require_once 'content.php';
-}
-?>
-<style>
-/* ======= TỔNG THỂ GIAO DIỆN ======= */
-body {
-  background-color: #f4f7fa;
-  font-family: "Poppins", sans-serif;
-}
-
-/* ======= SIDEBAR ======= */
-.sidebar {
-  background: #1b1e29;
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.15);
-}
-
-.nav-item.nav-category span {
-  color: #9aa0a6;
-  font-size: 13px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  margin-top: 10px;
-  display: block;
-}
-
-.menu-item {
-  margin-bottom: 3px;
-}
-
-.menu-link {
-  color: #cbd5e1 !important;
-  font-weight: 500;
-  text-decoration: none;
-  border-radius: 6px;
-  padding: 8px 15px;
-  display: flex;
-  align-items: center;
-  transition: all 0.2s ease;
-}
-
-.menu-link i {
-  font-size: 18px;
-  margin-right: 10px;
-  color: #cbd5e1;
-}
-
-.menu-link:hover {
-  background-color: #2c3341;
-  color: #fff !important;
-}
-
-.menu-link:hover i {
-  color: #4fc3f7 !important;
-}
-
-/* Menu đang active */
-.menu-item.active > .menu-link,
-.menu-link.active {
-  background-color: #2d8cff !important;
-  color: #fff !important;
-  box-shadow: 0 2px 8px rgba(45, 140, 255, 0.4);
-}
-
-.menu-item.active > .menu-link i {
-  color: #fff !important;
-}
-
-/* ======= NAVBAR ======= */
-.navbar {
-  background-color: #fff !important;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  height: 70px;
-}
-
-.navbar .navbar-brand img {
-  transition: 0.3s;
-}
-
-.navbar .navbar-brand img:hover {
-  transform: scale(1.05);
-}
-
-/* Navbar text */
-.navbar-menu-wrapper h5 {
-  font-weight: 600;
-  color: #333;
-  letter-spacing: 0.3px;
-}
-
-/* ======= MAIN CONTENT ======= */
-.page-body-wrapper {
-  background: #f4f6fb;
-  min-height: 100vh;
-  padding-top: 80px;
-}
-
-.main-panel {
-  background-color: #fff;
-  border-radius: 10px;
-  padding: 25px;
-  margin: 20px;
-  box-shadow: 0 3px 15px rgba(0, 0, 0, 0.05);
-}
-
-/* ======= BẢNG DANH SÁCH ======= */
-.table {
-  border-collapse: separate;
-  border-spacing: 0 8px;
-}
-
-.table thead th {
-  background-color: #edf2f7;
-  border: none;
-  font-weight: 600;
-  color: #444;
-  text-align: center;
-}
-
-.table tbody tr {
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.table tbody tr:hover {
-  background-color: #f9fbff;
-}
-
-.table td, .table th {
-  vertical-align: middle;
-  text-align: center;
-}
-
-/* ======= FOOTER ======= */
-.footer {
-  background: #fff;
-  border-top: 1px solid #e9ecef;
-  padding: 15px;
-  font-size: 14px;
-  color: #6c757d;
-}
-
-/* ======= SCROLLBAR ======= */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-thumb {
-  background-color: #4fc3f7;
-  border-radius: 5px;
-}
-
-::-webkit-scrollbar-track {
-  background-color: #1b1e29;
-}
-</style>
-
-
-          <!-- partial:partials/_footer.html -->
-          <footer class="footer">
-            <div class="d-sm-flex justify-content-center justify-content-sm-between">
-              <span class="text-muted text-center text-sm-left d-block d-sm-inline-block">Copyright © 2024 Stellar. All rights reserved. <a href="#"> Terms of use</a><a href="#">Privacy Policy</a></span>
-              <span class="float-none float-sm-right d-block mt-1 mt-sm-0 text-center">Hand-crafted & made with <i class="icon-heart text-danger"></i></span>
             </div>
-          </footer>
-          <!-- partial -->
-        </div>
-        <!-- main-panel ends -->
+            <div class="col-md-6">
+              <div class="card neon-card">
+                <div class="card-body">
+                  <h4 class="text-center text-glow">🧑‍💻 Vai trò người dùng</h4>
+                  <div style="position:relative">
+                    <canvas id="chartRoles"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RECENT LISTS -->
+          <?php
+          $sections = [
+            'users' => ['title' => 'Người dùng gần đây', 'query' => "SELECT * FROM users ORDER BY created_at DESC LIMIT 5", 'cols' => ['ID', 'Tên đăng nhập', 'Email', 'Quyền', 'Ngày tạo']],
+            'articles' => ['title' => 'Bài viết gần đây', 'query' => "SELECT title, created_at FROM articles ORDER BY created_at DESC LIMIT 5"],
+            'comments' => ['title' => 'Bình luận mới nhất', 'query' => "SELECT c.content,u.username,c.created_at FROM comments c JOIN users u ON c.user_id=u.user_id ORDER BY c.created_at DESC LIMIT 5"],
+            'favorites' => ['title' => 'Yêu thích gần đây', 'query' => "SELECT f.created_at,u.username,a.title FROM favorites f JOIN users u ON f.user_id=u.user_id JOIN articles a ON f.article_id=a.article_id ORDER BY f.created_at DESC LIMIT 5"]
+          ];
+          foreach ($sections as $id => $sec):
+            $res = $ketnoi->query($sec['query']);
+          ?>
+            <div id="section-<?= $id ?>" class="row mt-4">
+              <div class="col-md-12">
+                <div class="card neon-card p-3">
+                  <h4 class="text-glow"><?= $sec['title'] ?></h4>
+                  <?php if ($id === 'users'): ?>
+                    <div class="table-responsive">
+                      <table class="table">
+                        <thead>
+                          <tr><?php foreach ($sec['cols'] as $c) echo "<th>$c</th>"; ?></tr>
+                        </thead>
+                        <tbody>
+                          <?php while ($u = $res->fetch_assoc()): ?>
+                            <tr>
+                              <td><?= $u['user_id'] ?></td>
+                              <td><?= htmlspecialchars($u['username']) ?></td>
+                              <td><?= htmlspecialchars($u['email']) ?></td>
+                              <td><?= ucfirst($u['role']) ?></td>
+                              <td><?= $u['created_at'] ?></td>
+                            </tr>
+                          <?php endwhile; ?>
+                        </tbody>
+                      </table>
+                    </div>
+                  <?php else: ?>
+                    <ul style="list-style:none;padding-left:0;color:#cfefff">
+                      <?php while ($r = $res->fetch_assoc()): ?>
+                        <?php if ($id === 'articles'): ?>
+                          <li>📰 <b><?= htmlspecialchars($r['title']) ?></b> <small>(<?= $r['created_at'] ?>)</small></li>
+                        <?php elseif ($id === 'comments'): ?>
+                          <li>💬 <b><?= htmlspecialchars($r['username']) ?></b>: <?= htmlspecialchars($r['content']) ?> <small>(<?= $r['created_at'] ?>)</small></li>
+                        <?php else: ?>
+                          <li>❤️ <b><?= htmlspecialchars($r['username']) ?></b> yêu thích <i><?= htmlspecialchars($r['title']) ?></i> <small>(<?= $r['created_at'] ?>)</small></li>
+                        <?php endif; ?>
+                      <?php endwhile; ?>
+                    </ul>
+                  <?php endif; ?>
+                </div>
+              </div>
+            </div>
+        <?php
+          endforeach;
+        } // end else (dashboard)
+        ?>
       </div>
-      <!-- page-body-wrapper ends -->
     </div>
-    <!-- container-scroller -->
-    <!-- plugins:js -->
-    <script src="assets/vendors/js/vendor.bundle.base.js"></script>
-    <!-- endinject -->
-    <!-- Plugin js for this page -->
-    <script src="assets/vendors/chart.js/chart.umd.js"></script>
-    <script src="assets/vendors/jvectormap/jquery-jvectormap.min.js"></script>
-    <script src="assets/vendors/jvectormap/jquery-jvectormap-world-mill-en.js"></script>
-    <script src="assets/vendors/bootstrap-datepicker/bootstrap-datepicker.min.js"></script>
-    <script src="assets/vendors/moment/moment.min.js"></script>
-    <script src="assets/vendors/daterangepicker/daterangepicker.js"></script>
-    <script src="assets/vendors/chartist/chartist.min.js"></script>
-    <script src="assets/vendors/progressbar.js/progressbar.min.js"></script>
-    <script src="assets/js/jquery.cookie.js"></script>
-    <!-- End plugin js for this page -->
-    <!-- inject:js -->
-    <script src="assets/js/off-canvas.js"></script>
-    <script src="assets/js/hoverable-collapse.js"></script>
-    <script src="assets/js/misc.js"></script>
-    <script src="assets/js/settings.js"></script>
-    <script src="assets/js/todolist.js"></script>
-    <!-- endinject -->
-    <!-- Custom js for this page -->
-    <script src="assets/js/dashboard.js"></script>
-    <!-- End custom js for this page -->
-  </body>
+
+    <!-- FOOTER -->
+    <footer class="footer">© <?= date('Y') ?> GameNova Pro — Designed with Neon Power Mode</footer>
+  </div>
+
+  <!-- SCRIPTS -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    // Sidebar toggle
+    const sidebar = document.getElementById('sidebar');
+    const toggle = document.getElementById('toggleSidebar');
+    toggle && toggle.addEventListener('click', () => {
+      sidebar.classList.toggle('minimized');
+      document.querySelector('.page-body-wrapper').classList.toggle('minimized');
+    });
+
+    // Auto-hide alerts
+    setTimeout(() => document.querySelectorAll('.alert').forEach(a => a && (a.style.display = 'none')), 3500);
+
+    // Smooth scroll for quick action buttons
+    document.querySelectorAll('.neon-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const href = btn.getAttribute('href');
+        if (!href || !href.startsWith('#')) return;
+        e.preventDefault();
+        const t = document.querySelector(href);
+        if (t) window.scrollTo({
+          top: t.offsetTop - 80,
+          behavior: 'smooth'
+        });
+      });
+    });
+
+    // If dashboard present, init charts + micro-interactions + particle glow + boot-up
+    (function() {
+      if (!document.getElementById('chartCategories')) return;
+
+      // Data from PHP
+      const categories = <?= json_encode($categories ?? []) ?>;
+      const counts = <?= json_encode($counts ?? []) ?>;
+      const roles = <?= json_encode($roles ?? []) ?>;
+      const roleCounts = <?= json_encode($role_counts ?? []) ?>;
+
+      // helper gradient
+      function neonGradient(ctx, color) {
+        const g = ctx.createLinearGradient(0, 0, 0, 400);
+        g.addColorStop(0, color + 'AA');
+        g.addColorStop(1, color + '22');
+        return g;
+      }
+
+      // Categories bar chart
+      const ctxCat = document.getElementById('chartCategories').getContext('2d');
+      const chartCategories = new Chart(ctxCat, {
+        type: 'bar',
+        data: {
+          labels: categories,
+          datasets: [{
+            label: 'Số bài viết',
+            data: counts,
+            backgroundColor: function(ctx) {
+              const palette = ['#00f6ff', '#b36bff', '#00ffa3', '#ff7ad1'];
+              const color = palette[ctx.dataIndex % palette.length];
+              return neonGradient(ctx.chart.ctx, color);
+            },
+            borderColor: '#071216',
+            borderWidth: 1.2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              ticks: {
+                color: '#dff7ff'
+              },
+              grid: {
+                color: 'rgba(255,255,255,0.02)'
+              }
+            },
+            y: {
+              ticks: {
+                color: '#dff7ff'
+              },
+              beginAtZero: true,
+              grid: {
+                color: 'rgba(255,255,255,0.02)'
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: '#07131a',
+              titleColor: '#bffcff',
+              bodyColor: '#dff7ff',
+              borderColor: 'rgba(0,246,255,0.2)',
+              borderWidth: 1
+            }
+          },
+          interaction: {
+            mode: 'nearest',
+            axis: 'x',
+            intersect: true
+          },
+          animation: {
+            duration: 900,
+            easing: 'easeOutQuart'
+          },
+          onHover: (evt, elements) => {
+            evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+            if (elements.length) {
+              const el = elements[0];
+              chartCategories.setActiveElements([{
+                datasetIndex: el.datasetIndex,
+                index: el.index
+              }]);
+              chartCategories.update();
+            } else {
+              chartCategories.setActiveElements([]);
+              chartCategories.update();
+            }
+          },
+          transitions: {
+            active: {
+              animation: {
+                duration: 300,
+                easing: 'easeOutBounce'
+              }
+            }
+          }
+        }
+      });
+
+      // Roles doughnut
+      const ctxRole = document.getElementById('chartRoles').getContext('2d');
+      const chartRoles = new Chart(ctxRole, {
+        type: 'doughnut',
+        data: {
+          labels: roles,
+          datasets: [{
+            data: roleCounts,
+            backgroundColor: ['#b36bff', '#00ffa3', '#ff7ad1', '#00f6ff'],
+            borderColor: '#071216',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '60%',
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#dff7ff'
+              }
+            },
+            tooltip: {
+              backgroundColor: '#07131a',
+              titleColor: '#bffcff',
+              bodyColor: '#dff7ff'
+            }
+          },
+          animation: {
+            animateRotate: true,
+            duration: 1000,
+            easing: 'easeOutElastic'
+          },
+          onHover: (evt, elements) => {
+            evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+            if (elements.length) {
+              const el = elements[0];
+              const segment = chartRoles.getDatasetMeta(0).data[el.index];
+              segment.options.borderColor = '#00f6ff';
+              segment.options.borderWidth = 3;
+              chartRoles.update();
+            } else {
+              chartRoles.data.datasets[0].borderColor = '#071216';
+              chartRoles.data.datasets[0].borderWidth = 2;
+              chartRoles.update();
+            }
+          }
+        }
+      });
+
+      // Particle glow layer for each chart
+      function createParticleCanvas(wrapper, color) {
+        const canvas = document.createElement('canvas');
+        canvas.className = 'chart-glow';
+        canvas.style.position = 'absolute';
+        canvas.style.left = '0';
+        canvas.style.top = '0';
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        canvas.width = wrapper.offsetWidth || 400;
+        canvas.height = wrapper.offsetHeight || 240;
+        wrapper.insertBefore(canvas, wrapper.firstChild);
+        const ctx = canvas.getContext('2d');
+        const particles = [];
+        const count = 22;
+        for (let i = 0; i < count; i++) {
+          particles.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            s: Math.random() * 2 + 0.6,
+            vx: (Math.random() - 0.5) * 0.4,
+            vy: (Math.random() - 0.5) * 0.4,
+            o: Math.random() * 0.5 + 0.12
+          });
+        }
+
+        function draw() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          particles.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.s, 0, Math.PI * 2);
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = color.replace('rgb', 'rgba').replace(')', `,` + p.o + ')');
+            ctx.fill();
+            ctx.globalCompositeOperation = 'source-over';
+            p.x += p.vx;
+            p.y += p.vy;
+            if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+            if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+          });
+          requestAnimationFrame(draw);
+        }
+        draw();
+        // responsive resize
+        window.addEventListener('resize', () => {
+          canvas.width = wrapper.offsetWidth || 400;
+          canvas.height = wrapper.offsetHeight || 240;
+        });
+      }
+
+      // attach to chart wrappers
+      document.querySelectorAll('.card canvas').forEach(cv => {
+        const wrap = cv.parentElement;
+        try {
+          createParticleCanvas(wrap, 'rgb(255,27,191)');
+        } catch (e) {}
+      });
+
+      // Boot-up animation plugin (visual shadow)
+      Chart.register({
+        id: 'gameNovaBoot',
+        beforeDraw(chart) {
+          const ctx = chart.ctx;
+          ctx.save();
+          ctx.shadowColor = 'rgba(255,27,191,0.18)';
+          ctx.shadowBlur = 14;
+          ctx.restore();
+        }
+      });
+
+      // run boot animation
+      [chartCategories, chartRoles].forEach(ch => {
+        let start = null;
+
+        function anim(t) {
+          if (!start) start = t;
+          const p = t - start;
+          ch.currentStep = p;
+          ch.update();
+          if (p < 1000) requestAnimationFrame(anim);
+        }
+        requestAnimationFrame(anim);
+      });
+
+    })();
+  </script>
+</body>
+
 </html>
+<?php ob_end_flush(); ?>
