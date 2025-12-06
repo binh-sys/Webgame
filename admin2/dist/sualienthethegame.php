@@ -1,173 +1,146 @@
 <?php
+// sualienthethegame.php - Sửa liên kết bài viết - thẻ game
 require_once('ketnoi.php');
-$id = $_GET['id'] ?? 0;
 
-// Lấy dữ liệu hiện tại
-$sql = "SELECT * FROM article_tags WHERE id = '$id'";
-$result = mysqli_query($ketnoi, $sql);
-$link = mysqli_fetch_assoc($result);
-
-if (!$link) {
-    echo "<div class='alert alert-danger text-center mt-4'>❌ Không tìm thấy liên kết!</div>";
-    exit;
+if (!isset($_GET['article_id']) || !isset($_GET['tag_id'])) {
+    echo '<script>alert("Thiếu thông tin!"); window.location.href="index.php?page_layout=danhsachlienthethegame";</script>';
+    exit();
 }
 
-// Lấy danh sách bài viết và thẻ game
-$articles = mysqli_query($ketnoi, "SELECT article_id, title FROM articles ORDER BY title ASC");
+$old_article_id = intval($_GET['article_id']);
+$old_tag_id = intval($_GET['tag_id']);
+
+$result = mysqli_query($ketnoi, "SELECT * FROM article_tags WHERE article_id = $old_article_id AND tag_id = $old_tag_id");
+
+if (!$result || mysqli_num_rows($result) == 0) {
+    echo '<script>alert("Không tìm thấy liên kết!"); window.location.href="index.php?page_layout=danhsachlienthethegame";</script>';
+    exit();
+}
+
+$link = mysqli_fetch_assoc($result);
+$articles = mysqli_query($ketnoi, "SELECT article_id, title FROM articles ORDER BY created_at DESC");
 $tags = mysqli_query($ketnoi, "SELECT tag_id, name FROM tags ORDER BY name ASC");
 
-// Cập nhật dữ liệu
-if (isset($_POST['update_link'])) {
-    $article_id = $_POST['article_id'];
-    $tag_id = $_POST['tag_id'];
+$errors = [];
 
-    $update = "UPDATE article_tags SET article_id='$article_id', tag_id='$tag_id' WHERE id='$id'";
-    if (mysqli_query($ketnoi, $update)) {
-        echo "<script>
-            alert('✅ Cập nhật liên kết thành công!');
-            window.location.href='?page_layout=danhsachlienthethegame';
-        </script>";
-        exit;
-    } else {
-        echo "<div class='alert alert-danger text-center mt-3'>❌ Lỗi khi cập nhật!</div>";
+if (isset($_POST['update_link'])) {
+    $article_id = intval($_POST['article_id'] ?? 0);
+    $tag_id = intval($_POST['tag_id'] ?? 0);
+
+    if ($article_id <= 0) $errors[] = 'Vui lòng chọn bài viết.';
+    if ($tag_id <= 0) $errors[] = 'Vui lòng chọn thẻ game.';
+
+    // Kiểm tra trùng (trừ chính nó)
+    if (empty($errors) && ($article_id != $old_article_id || $tag_id != $old_tag_id)) {
+        $check = mysqli_prepare($ketnoi, "SELECT article_id FROM article_tags WHERE article_id = ? AND tag_id = ?");
+        mysqli_stmt_bind_param($check, 'ii', $article_id, $tag_id);
+        mysqli_stmt_execute($check);
+        if (mysqli_stmt_get_result($check)->num_rows > 0) {
+            $errors[] = 'Liên kết này đã tồn tại.';
+        }
+        mysqli_stmt_close($check);
     }
+
+    if (empty($errors)) {
+        // Xóa liên kết cũ và thêm mới
+        mysqli_query($ketnoi, "DELETE FROM article_tags WHERE article_id = $old_article_id AND tag_id = $old_tag_id");
+        $stmt = mysqli_prepare($ketnoi, "INSERT INTO article_tags (article_id, tag_id) VALUES (?, ?)");
+        mysqli_stmt_bind_param($stmt, 'ii', $article_id, $tag_id);
+        if (mysqli_stmt_execute($stmt)) {
+            echo '<script>alert("✅ Cập nhật thành công!"); window.location.href="index.php?page_layout=danhsachlienthethegame";</script>';
+            exit;
+        } else {
+            $errors[] = 'Lỗi khi cập nhật.';
+        }
+        mysqli_stmt_close($stmt);
+    }
+    
+    $link['article_id'] = $article_id;
+    $link['tag_id'] = $tag_id;
 }
 ?>
 
-<div class="content-wrapper d-flex align-items-center justify-content-center" style="min-height:100vh;">
-  <div class="edit-link-card">
-    <div class="edit-header text-center mb-4">
-      <h3><i class="bx bx-link-alt me-2"></i> Chỉnh sửa Liên kết Bài viết & Thẻ Game</h3>
-      <p>Điều chỉnh mối quan hệ giữa bài viết và thẻ game trong hệ thống.</p>
+<link rel="stylesheet" href="assets/css/admin-forms.css">
+
+<div class="admin-form-container">
+    <div class="admin-form-card">
+        <div class="admin-form-header">
+            <div>
+                <h2><i class='bx bx-edit'></i> Chỉnh sửa liên kết thẻ</h2>
+                <div class="header-breadcrumb">
+                    <a href="index.php">Trang chủ</a> / <a href="?page_layout=danhsachlienthethegame">Liên kết thẻ</a> / Chỉnh sửa
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="?page_layout=danhsachlienthethegame" class="btn btn-ghost">
+                    <i class='bx bx-arrow-back'></i> Quay lại
+                </a>
+            </div>
+        </div>
+
+        <div class="admin-form-body">
+            <?php if (!empty($errors)): ?>
+            <div class="alert alert-error">
+                <i class='bx bx-error-circle'></i>
+                <div class="alert-content">
+                    <div class="alert-title">Có lỗi xảy ra!</div>
+                    <ul style="margin:0;padding-left:18px;">
+                        <?php foreach ($errors as $err): ?>
+                            <li><?= htmlspecialchars($err) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <form method="POST">
+                <input type="hidden" name="update_link" value="1">
+                
+                <div class="form-section" style="max-width:600px;">
+                    <div class="form-section-title">
+                        <i class='bx bx-link'></i> Liên kết bài viết với thẻ game
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label required">Bài viết</label>
+                        <select name="article_id" class="form-select" required>
+                            <option value="">-- Chọn bài viết --</option>
+                            <?php while ($a = mysqli_fetch_assoc($articles)): ?>
+                                <option value="<?= $a['article_id'] ?>" <?= ($link['article_id'] == $a['article_id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($a['title']) ?>
+                                </option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label required">Thẻ game</label>
+                        <select name="tag_id" class="form-select" required>
+                            <option value="">-- Chọn thẻ game --</option>
+                            <?php while ($t = mysqli_fetch_assoc($tags)): ?>
+                                <option value="<?= $t['tag_id'] ?>" <?= ($link['tag_id'] == $t['tag_id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($t['name']) ?>
+                                </option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+
+                    <div class="form-divider"></div>
+
+                    <div class="btn-group">
+                        <button type="submit" class="btn btn-primary">
+                            <i class='bx bx-save'></i> Lưu thay đổi
+                        </button>
+                        <a href="?page_layout=xoalienthethegame&article_id=<?= $old_article_id ?>&tag_id=<?= $old_tag_id ?>" class="btn btn-danger" 
+                           onclick="return confirm('Xóa liên kết này?');">
+                            <i class='bx bx-trash'></i> Xóa
+                        </a>
+                        <a href="?page_layout=danhsachlienthethegame" class="btn btn-ghost">
+                            <i class='bx bx-x'></i> Hủy
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
-
-    <form method="POST" class="neon-form">
-      <div class="form-group mb-4">
-        <label><i class="bx bx-news me-2"></i>Chọn bài viết</label>
-        <select name="article_id" class="form-select" required>
-          <?php while ($a = mysqli_fetch_assoc($articles)) { ?>
-            <option value="<?= $a['article_id'] ?>" <?= ($a['article_id'] == $link['article_id']) ? 'selected' : '' ?>>
-              <?= htmlspecialchars($a['title']) ?>
-            </option>
-          <?php } ?>
-        </select>
-      </div>
-
-      <div class="form-group mb-4">
-        <label><i class="bx bx-purchase-tag-alt me-2"></i>Chọn thẻ game</label>
-        <select name="tag_id" class="form-select" required>
-          <?php while ($t = mysqli_fetch_assoc($tags)) { ?>
-            <option value="<?= $t['tag_id'] ?>" <?= ($t['tag_id'] == $link['tag_id']) ? 'selected' : '' ?>>
-              <?= htmlspecialchars($t['name']) ?>
-            </option>
-          <?php } ?>
-        </select>
-      </div>
-
-      <div class="text-center mt-4">
-        <button type="submit" name="update_link" class="btn-update">
-          <i class="bx bx-save me-2"></i> Cập nhật
-        </button>
-        <a href="?page_layout=danhsachlienthethegame" class="btn-cancel">
-          <i class="bx bx-arrow-back me-1"></i> Quay lại
-        </a>
-      </div>
-    </form>
-  </div>
 </div>
-
-<style>
-  body {
-    background: radial-gradient(circle at top left, #0d1b2a, #000814);
-    font-family: 'Poppins', sans-serif;
-    color: #e6f1ff;
-  }
-
-  .edit-link-card {
-    width: 600px;
-    background: linear-gradient(145deg, rgba(20, 30, 48, 0.9), rgba(36, 59, 85, 0.95));
-    border-radius: 20px;
-    padding: 45px 50px;
-    box-shadow: 0 0 25px rgba(0, 255, 255, 0.15), inset 0 0 10px rgba(0, 255, 255, 0.05);
-    backdrop-filter: blur(8px);
-    transition: all 0.3s ease;
-  }
-
-  .edit-link-card:hover {
-    box-shadow: 0 0 40px rgba(0, 255, 255, 0.25), inset 0 0 15px rgba(0, 255, 255, 0.1);
-    transform: translateY(-3px);
-  }
-
-  .edit-header h3 {
-    color: #00eaff;
-    text-shadow: 0 0 15px #00eaff;
-    font-weight: 600;
-  }
-
-  .edit-header p {
-    color: #9bbfd1;
-    font-size: 0.95rem;
-  }
-
-  label {
-    font-weight: 500;
-    color: #cfe9ff;
-    display: block;
-    margin-bottom: 6px;
-  }
-
-  .form-select {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(0, 234, 255, 0.3);
-    color: #e6f1ff;
-    border-radius: 12px;
-    padding: 12px 14px;
-    font-size: 1rem;
-    width: 100%;
-    transition: all 0.3s ease;
-  }
-
-  .form-select:focus {
-    outline: none;
-    border-color: #00eaff;
-    box-shadow: 0 0 15px rgba(0, 234, 255, 0.5);
-  }
-
-  option {
-    background: #0d1b2a;
-    color: #fff;
-  }
-
-  .btn-update {
-    background: linear-gradient(90deg, #00bcd4, #1de9b6);
-    border: none;
-    border-radius: 30px;
-    padding: 12px 40px;
-    color: #fff;
-    font-size: 1.05rem;
-    font-weight: 600;
-    box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
-    transition: all 0.3s ease;
-  }
-
-  .btn-update:hover {
-    box-shadow: 0 0 30px rgba(0, 255, 255, 0.8);
-    transform: scale(1.05);
-  }
-
-  .btn-cancel {
-    display: inline-block;
-    margin-left: 15px;
-    color: #a5b9c9;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 25px;
-    padding: 10px 25px;
-    text-decoration: none;
-    transition: 0.3s;
-  }
-
-  .btn-cancel:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
-  }
-</style>

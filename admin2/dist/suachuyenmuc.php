@@ -1,88 +1,132 @@
 <?php
+// suachuyenmuc.php - Sửa chuyên mục
 require_once('ketnoi.php');
 
-// --- Lấy ID chuyên mục cần sửa ---
-if (isset($_GET['id'])) {
-    $id = intval($_GET['id']);
-    $result = mysqli_query($ketnoi, "SELECT * FROM categories WHERE category_id = $id");
-    $row = mysqli_fetch_assoc($result);
-
-    if (!$row) {
-        echo "<script>alert('❌ Không tìm thấy chuyên mục!'); window.location='index.php?page_layout=danhsachchuyenmuc';</script>";
-        exit();
-    }
+if (!isset($_GET['id'])) {
+    echo '<script>alert("Thiếu ID chuyên mục!"); window.location.href="index.php?page_layout=danhsachchuyenmuc";</script>';
+    exit();
 }
 
-// --- Xử lý khi người dùng bấm Lưu ---
+$id = intval($_GET['id']);
+$result = mysqli_query($ketnoi, "SELECT * FROM categories WHERE category_id = $id");
+
+if (!$result || mysqli_num_rows($result) == 0) {
+    echo '<script>alert("Không tìm thấy chuyên mục!"); window.location.href="index.php?page_layout=danhsachchuyenmuc";</script>';
+    exit();
+}
+
+$category = mysqli_fetch_assoc($result);
+$errors = [];
+
 if (isset($_POST['update_category'])) {
-    $name = trim($_POST['name']);
-    $slug = trim($_POST['slug']);
-    $description = trim($_POST['description']);
+    $name = trim($_POST['name'] ?? '');
+    $slug = trim($_POST['slug'] ?? '');
+    $description = trim($_POST['description'] ?? '');
 
-    // --- Sinh slug tự động nếu để trống ---
-    if (empty($slug)) {
-        $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $name)));
-    }
+    if ($name === '') $errors[] = 'Tên chuyên mục không được để trống.';
+    if ($slug === '') $errors[] = 'Slug không được để trống.';
 
-    // --- Kiểm tra trùng slug (trừ chính bản ghi đang sửa) ---
-    $check = mysqli_query($ketnoi, "SELECT * FROM categories WHERE slug = '$slug' AND category_id != $id");
-    if (mysqli_num_rows($check) > 0) {
-        $original_slug = $slug;
-        $count = 1;
-        while (mysqli_num_rows(mysqli_query($ketnoi, "SELECT * FROM categories WHERE slug = '$slug' AND category_id != $id")) > 0) {
-            $slug = $original_slug . '-' . $count++;
+    // Kiểm tra trùng slug (trừ chính nó)
+    if (empty($errors)) {
+        $check = mysqli_prepare($ketnoi, "SELECT category_id FROM categories WHERE slug = ? AND category_id != ?");
+        mysqli_stmt_bind_param($check, 'si', $slug, $id);
+        mysqli_stmt_execute($check);
+        if (mysqli_stmt_get_result($check)->num_rows > 0) {
+            $errors[] = 'Slug đã tồn tại, vui lòng chọn slug khác.';
         }
+        mysqli_stmt_close($check);
     }
 
-    // --- Cập nhật ---
-    $sql = "UPDATE categories SET 
-                name = '$name',
-                slug = '$slug',
-                description = '$description'
-            WHERE category_id = $id";
-
-    if (mysqli_query($ketnoi, $sql)) {
-        echo "<script>
-            alert('✅ Cập nhật chuyên mục thành công!');
-            window.location = 'index.php?page_layout=danhsachchuyenmuc';
-        </script>";
-        exit();
-    } else {
-        echo "<script>alert('❌ Lỗi khi cập nhật chuyên mục!');</script>";
+    if (empty($errors)) {
+        $stmt = mysqli_prepare($ketnoi, "UPDATE categories SET name=?, slug=?, description=? WHERE category_id=?");
+        mysqli_stmt_bind_param($stmt, 'sssi', $name, $slug, $description, $id);
+        if (mysqli_stmt_execute($stmt)) {
+            echo '<script>alert("✅ Cập nhật chuyên mục thành công!"); window.location.href="index.php?page_layout=danhsachchuyenmuc";</script>';
+            exit;
+        } else {
+            $errors[] = 'Lỗi khi cập nhật.';
+        }
+        mysqli_stmt_close($stmt);
     }
+    
+    $category['name'] = $name;
+    $category['slug'] = $slug;
+    $category['description'] = $description;
 }
 ?>
 
-<div class='container mt-4'>
-    <div class='card shadow-sm'>
-        <div class='card-header bg-warning text-dark'>
-            <h4 class='mb-0'>✏️ Sửa chuyên mục</h4>
+<link rel="stylesheet" href="assets/css/admin-forms.css">
+
+<div class="admin-form-container">
+    <div class="admin-form-card">
+        <div class="admin-form-header">
+            <div>
+                <h2><i class='bx bx-edit'></i> Chỉnh sửa chuyên mục</h2>
+                <div class="header-breadcrumb">
+                    <a href="index.php">Trang chủ</a> / <a href="?page_layout=danhsachchuyenmuc">Chuyên mục</a> / Chỉnh sửa
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="?page_layout=danhsachchuyenmuc" class="btn btn-ghost">
+                    <i class='bx bx-arrow-back'></i> Quay lại
+                </a>
+            </div>
         </div>
 
-        <div class='card-body'>
-            <form method='POST'>
-                <div class='mb-3'>
-                    <label class='form-label fw-bold'>Tên chuyên mục</label>
-                    <input type='text' name='name' class='form-control' value='<?php echo htmlspecialchars($row['name']); ?>' required>
+        <div class="admin-form-body">
+            <?php if (!empty($errors)): ?>
+            <div class="alert alert-error">
+                <i class='bx bx-error-circle'></i>
+                <div class="alert-content">
+                    <div class="alert-title">Có lỗi xảy ra!</div>
+                    <ul style="margin:0;padding-left:18px;">
+                        <?php foreach ($errors as $err): ?>
+                            <li><?= htmlspecialchars($err) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
                 </div>
+            </div>
+            <?php endif; ?>
 
-                <div class='mb-3'>
-                    <label class='form-label fw-bold'>Slug</label>
-                    <input type='text' name='slug' class='form-control' value='<?php echo htmlspecialchars($row['slug']); ?>'>
-                </div>
+            <form method="POST" id="categoryForm">
+                <input type="hidden" name="update_category" value="1">
+                
+                <div class="form-section" style="max-width:700px;">
+                    <div class="form-section-title">
+                        <i class='bx bx-category'></i> Thông tin chuyên mục
+                    </div>
 
-                <div class='mb-3'>
-                    <label class='form-label fw-bold'>Mô tả</label>
-                    <textarea name='description' class='form-control' rows='3'><?php echo htmlspecialchars($row['description']); ?></textarea>
-                </div>
+                    <div class="form-group">
+                        <label class="form-label required">Tên chuyên mục</label>
+                        <input type="text" name="name" id="name" class="form-input" 
+                               value="<?= htmlspecialchars($category['name']) ?>" required>
+                    </div>
 
-                <div class='d-flex justify-content-between mt-4'>
-                    <button type='submit' name='update_category' class='btn btn-success px-4'>
-                        <i class='bi bi-save'></i> Lưu thay đổi
-                    </button>
-                    <a href='index.php?page_layout=danhsachchuyenmuc' class='btn btn-secondary px-4'>
-                        <i class='bi bi-arrow-left'></i> Quay lại
-                    </a>
+                    <div class="form-group">
+                        <label class="form-label required">Slug (URL)</label>
+                        <input type="text" name="slug" id="slug" class="form-input" 
+                               value="<?= htmlspecialchars($category['slug']) ?>" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Mô tả</label>
+                        <textarea name="description" class="form-textarea" rows="4"><?= htmlspecialchars($category['description']) ?></textarea>
+                    </div>
+
+                    <div class="form-divider"></div>
+
+                    <div class="btn-group">
+                        <button type="submit" class="btn btn-primary">
+                            <i class='bx bx-save'></i> Lưu thay đổi
+                        </button>
+                        <a href="?page_layout=xoachuyenmuc&id=<?= $id ?>" class="btn btn-danger" 
+                           onclick="return confirm('Bạn có chắc chắn muốn xóa chuyên mục này?');">
+                            <i class='bx bx-trash'></i> Xóa
+                        </a>
+                        <a href="?page_layout=danhsachchuyenmuc" class="btn btn-ghost">
+                            <i class='bx bx-x'></i> Hủy
+                        </a>
+                    </div>
                 </div>
             </form>
         </div>

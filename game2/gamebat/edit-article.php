@@ -1,74 +1,105 @@
 <?php
 session_start();
-require_once('ketnoi.php');
+require_once 'ketnoi.php';
 
-// CHỈ TÁC GIẢ / EDITOR ĐƯỢC VÀO
-if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['author', 'editor'])) {
-    echo '<script>alert("⚠️ Bạn không có quyền truy cập trang này!"); window.location.href="index.php";</script>';
-    exit();
+// Kiểm tra đăng nhập và quyền
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['editor', 'admin'])) {
+    header("Location: login.php");
+    exit;
 }
 
-// HÀM TẠO SLUG
-function generateSlug($str)
-{
-    $str = strtolower($str);
-    $str = preg_replace('/[áàảãạăắằẳẵặâấầẩẫậ]/u', 'a', $str);
-    $str = preg_replace('/[éèẻẽẹêếềểễệ]/u', 'e', $str);
-    $str = preg_replace('/[íìỉĩị]/u', 'i', $str);
-    $str = preg_replace('/[óòỏõọôốồổỗộơớờởỡợ]/u', 'o', $str);
-    $str = preg_replace('/[úùủũụưứừửữự]/u', 'u', $str);
-    $str = preg_replace('/[ýỳỷỹỵ]/u', 'y', $str);
-    $str = preg_replace('/đ/', 'd', $str);
-    $str = preg_replace('/[^a-z0-9]+/', '-', $str);
-    $str = trim($str, '-');
-    return $str;
+$user_id = intval($_SESSION['user_id']);
+$user_role = $_SESSION['role'];
+
+// Kiểm tra có ID bài viết không
+if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+    header("Location: author-history.php?error=invalid");
+    exit;
 }
 
-// LẤY DANH MỤC
+$article_id = intval($_GET['id']);
+
+// Lấy thông tin bài viết
+$sql = "SELECT * FROM articles WHERE article_id = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param('i', $article_id);
+$stmt->execute();
+$result = $stmt->get_result();
+
+if ($result->num_rows === 0) {
+    header("Location: author-history.php?error=notfound");
+    exit;
+}
+
+$article = $result->fetch_assoc();
+
+// Kiểm tra quyền: chỉ tác giả hoặc admin mới được sửa
+if ($user_role !== 'admin' && $article['author_id'] !== $user_id) {
+    header("Location: author-history.php?error=permission");
+    exit;
+}
+
+// Lấy danh mục
 $categories = mysqli_query($conn, "SELECT * FROM categories ORDER BY name ASC");
 
-// SUBMIT BÀI VIẾT
+// Xử lý cập nhật
 $error = '';
-if (isset($_POST['submit_article'])) {
-    $title = mysqli_real_escape_string($conn, $_POST['title']);
+$success = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_article'])) {
+    $title = mysqli_real_escape_string($conn, trim($_POST['title']));
     $content = mysqli_real_escape_string($conn, $_POST['content']);
     $category_id = intval($_POST['category_id']);
-    $author_id = $_SESSION['user_id'];
-    $created_at = date('Y-m-d H:i:s');
-    $status = 'pending';
-
-    $slug = generateSlug($title);
-    $check = mysqli_query($conn, "SELECT article_id FROM articles WHERE slug='$slug'");
-    if (mysqli_num_rows($check) > 0) $slug .= '-' . time();
-
-    $featured_image = '';
-    if (isset($_FILES['thumbnail']) && $_FILES['thumbnail']['error'] === 0) {
-        $ext = pathinfo($_FILES['thumbnail']['name'], PATHINFO_EXTENSION);
-        $upload_dir = __DIR__ . '/../uploads/';
-        if (!file_exists($upload_dir)) mkdir($upload_dir, 0777, true);
-        $new_name = uniqid() . '.' . $ext;
-        $featured_image = 'uploads/' . $new_name;
-        move_uploaded_file($_FILES['thumbnail']['tmp_name'], $upload_dir . $new_name);
-    }
-
-    // Tạo excerpt tự động từ content (lấy 200 ký tự đầu)
-    $excerpt = mysqli_real_escape_string($conn, strip_tags(substr($_POST['content'], 0, 200)));
     
-    $sql = "INSERT INTO articles (title, slug, excerpt, content, category_id, author_id, featured_image, status, created_at)
-            VALUES ('$title', '$slug', '$excerpt', '$content', $category_id, $author_id, '$featured_image', '$status', '$created_at')";
-
-    if (mysqli_query($conn, $sql)) {
-        header("Location: new-article.php?success=1");
-        exit();
+    if (empty($title) || empty($content) || $category_id <= 0) {
+        $error = 'Vui lòng điền đầy đủ thông tin!';
     } else {
-        $error = "Lỗi khi gửi bài!";
+        // Xử lý upload ảnh mới nếu có
+        $featured_image = $article['featured_image'];
+        
+        if (isset($_FILES['thumbnail']) && $_FILES['thumbnail']['error'] === 0) {
+            $ext = strtolower(pathinfo($_FILES['thumbnail']['name'], PATHINFO_EXTENSION));
+            $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+            
+            if (in_array($ext, $allowed)) {
+                // Xóa ảnh cũ
+                if (!empty($article['featured_image'])) {
+                    $old_path = __DIR__ . '/../' . $article['featured_image'];
+                    if (file_exists($old_path)) unlink($old_path);
+                }
+                
+                // Upload ảnh mới
+                $upload_dir = __DIR__ . '/../uploads/';
+                if (!file_exists($upload_dir)) mkdir($upload_dir, 0777, true);
+                
+                $new_name = uniqid() . '.' . $ext;
+                $featured_image = 'uploads/' . $new_name;
+                move_uploaded_file($_FILES['thumbnail']['tmp_name'], $upload_dir . $new_name);
+            }
+        }
+        
+        // Cập nhật bài viết - đặt lại status về pending nếu editor sửa
+        $new_status = ($user_role === 'admin') ? $article['status'] : 'pending';
+        
+        // Tạo excerpt tự động từ content
+        $excerpt = mysqli_real_escape_string($conn, strip_tags(substr($_POST['content'], 0, 200)));
+        
+        $update_sql = "UPDATE articles SET title = ?, excerpt = ?, content = ?, category_id = ?, featured_image = ?, status = ? WHERE article_id = ?";
+        $update_stmt = $conn->prepare($update_sql);
+        $update_stmt->bind_param('sssissi', $title, $excerpt, $content, $category_id, $featured_image, $new_status, $article_id);
+        
+        if ($update_stmt->execute()) {
+            header("Location: author-history.php?success=updated");
+            exit;
+        } else {
+            $error = 'Lỗi khi cập nhật bài viết!';
+        }
     }
 }
 ?>
 <?php include 'header.php'; ?>
 
 <style>
-    /* ===== EDITOR PAGE STYLES ===== */
     .editor-page {
         min-height: calc(100vh - 200px);
         background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
@@ -84,7 +115,7 @@ if (isset($_POST['submit_article'])) {
         width: 100%;
         height: 100%;
         background:
-            radial-gradient(circle at 10% 20%, rgba(138, 43, 226, 0.08) 0%, transparent 40%),
+            radial-gradient(circle at 10% 20%, rgba(23, 162, 184, 0.08) 0%, transparent 40%),
             radial-gradient(circle at 90% 80%, rgba(255, 179, 0, 0.06) 0%, transparent 40%);
         pointer-events: none;
     }
@@ -97,7 +128,6 @@ if (isset($_POST['submit_article'])) {
         z-index: 10;
     }
 
-    /* Header Section */
     .editor-header {
         display: flex;
         align-items: center;
@@ -116,12 +146,12 @@ if (isset($_POST['submit_article'])) {
     .editor-title-icon {
         width: 60px;
         height: 60px;
-        background: linear-gradient(135deg, #8a2be2, #9b59b6);
+        background: linear-gradient(135deg, #17a2b8, #20c997);
         border-radius: 16px;
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 10px 30px rgba(138, 43, 226, 0.3);
+        box-shadow: 0 10px 30px rgba(23, 162, 184, 0.3);
     }
 
     .editor-title-icon i {
@@ -158,31 +188,32 @@ if (isset($_POST['submit_article'])) {
         align-items: center;
         gap: 8px;
         border: none;
+        text-decoration: none;
     }
 
-    .btn-draft {
+    .btn-back {
         background: rgba(255, 255, 255, 0.1);
         color: #fff;
         border: 2px solid rgba(255, 255, 255, 0.2);
     }
 
-    .btn-draft:hover {
+    .btn-back:hover {
         background: rgba(255, 255, 255, 0.15);
         border-color: rgba(255, 255, 255, 0.3);
-    }
-
-    .btn-publish {
-        background: linear-gradient(135deg, #8a2be2, #9b59b6);
         color: #fff;
-        box-shadow: 0 5px 20px rgba(138, 43, 226, 0.4);
     }
 
-    .btn-publish:hover {
+    .btn-update {
+        background: linear-gradient(135deg, #17a2b8, #20c997);
+        color: #fff;
+        box-shadow: 0 5px 20px rgba(23, 162, 184, 0.4);
+    }
+
+    .btn-update:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(138, 43, 226, 0.5);
+        box-shadow: 0 8px 25px rgba(23, 162, 184, 0.5);
     }
 
-    /* Main Layout */
     .editor-layout {
         display: grid;
         grid-template-columns: 1fr 380px;
@@ -195,7 +226,6 @@ if (isset($_POST['submit_article'])) {
         }
     }
 
-    /* Main Editor Panel */
     .editor-main {
         display: flex;
         flex-direction: column;
@@ -219,7 +249,7 @@ if (isset($_POST['submit_article'])) {
     }
 
     .card-header i {
-        color: #8a2be2;
+        color: #17a2b8;
         font-size: 18px;
     }
 
@@ -234,7 +264,6 @@ if (isset($_POST['submit_article'])) {
         padding: 25px;
     }
 
-    /* Title Input */
     .title-input {
         width: 100%;
         background: transparent;
@@ -258,7 +287,6 @@ if (isset($_POST['submit_article'])) {
         margin-top: 10px;
     }
 
-    /* CKEditor Custom Styles */
     .ck-editor__editable {
         min-height: 450px !important;
         background: rgba(30, 30, 50, 0.5) !important;
@@ -286,12 +314,12 @@ if (isset($_POST['submit_article'])) {
     }
 
     .ck.ck-button:hover {
-        background: rgba(138, 43, 226, 0.3) !important;
+        background: rgba(23, 162, 184, 0.3) !important;
         color: #fff !important;
     }
 
     .ck.ck-button.ck-on {
-        background: rgba(138, 43, 226, 0.5) !important;
+        background: rgba(23, 162, 184, 0.5) !important;
         color: #fff !important;
     }
 
@@ -299,14 +327,12 @@ if (isset($_POST['submit_article'])) {
         border-radius: 0 0 16px 16px !important;
     }
 
-    /* Sidebar */
     .editor-sidebar {
         display: flex;
         flex-direction: column;
         gap: 25px;
     }
 
-    /* Category Select */
     .category-select {
         width: 100%;
         padding: 15px 20px;
@@ -326,8 +352,8 @@ if (isset($_POST['submit_article'])) {
     }
 
     .category-select:focus {
-        border-color: #8a2be2;
-        box-shadow: 0 0 20px rgba(138, 43, 226, 0.2);
+        border-color: #17a2b8;
+        box-shadow: 0 0 20px rgba(23, 162, 184, 0.2);
     }
 
     .category-select option {
@@ -336,7 +362,6 @@ if (isset($_POST['submit_article'])) {
         padding: 10px;
     }
 
-    /* Thumbnail Upload */
     .thumbnail-upload {
         position: relative;
     }
@@ -358,13 +383,13 @@ if (isset($_POST['submit_article'])) {
     }
 
     .thumbnail-preview:hover {
-        border-color: #8a2be2;
-        background: rgba(138, 43, 226, 0.1);
+        border-color: #17a2b8;
+        background: rgba(23, 162, 184, 0.1);
     }
 
     .thumbnail-preview.has-image {
         border-style: solid;
-        border-color: #8a2be2;
+        border-color: #17a2b8;
     }
 
     .thumbnail-preview img {
@@ -390,7 +415,7 @@ if (isset($_POST['submit_article'])) {
     .upload-placeholder i {
         font-size: 40px;
         margin-bottom: 15px;
-        color: #8a2be2;
+        color: #17a2b8;
     }
 
     .upload-placeholder p {
@@ -399,7 +424,7 @@ if (isset($_POST['submit_article'])) {
     }
 
     .upload-placeholder span {
-        color: #8a2be2;
+        color: #17a2b8;
         font-weight: 600;
     }
 
@@ -433,107 +458,91 @@ if (isset($_POST['submit_article'])) {
         transform: scale(1.1);
     }
 
-    /* Tips Card */
-    .tips-card {
-        background: linear-gradient(135deg, rgba(138, 43, 226, 0.15), rgba(155, 89, 182, 0.1));
-        border: 1px solid rgba(138, 43, 226, 0.3);
-    }
-
-    .tips-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-
-    .tips-list li {
+    .current-image-info {
+        margin-top: 10px;
+        padding: 10px 15px;
+        background: rgba(23, 162, 184, 0.1);
+        border-radius: 8px;
+        color: #17a2b8;
+        font-size: 13px;
         display: flex;
-        align-items: flex-start;
-        gap: 12px;
-        padding: 12px 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        color: #bbb;
-        font-size: 14px;
-        line-height: 1.5;
+        align-items: center;
+        gap: 8px;
     }
 
-    .tips-list li:last-child {
-        border-bottom: none;
+    .status-card {
+        background: linear-gradient(135deg, rgba(23, 162, 184, 0.15), rgba(32, 201, 151, 0.1));
+        border: 1px solid rgba(23, 162, 184, 0.3);
     }
 
-    .tips-list li i {
-        color: #8a2be2;
-        font-size: 16px;
-        margin-top: 2px;
-    }
-
-    /* Word Count */
-    .word-count-card .stats {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
+    .status-info {
+        display: flex;
+        align-items: center;
         gap: 15px;
     }
 
-    .stat-item {
-        background: rgba(40, 40, 60, 0.5);
-        padding: 15px;
-        border-radius: 12px;
-        text-align: center;
+    .status-badge {
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 600;
     }
 
-    .stat-item .number {
-        font-size: 24px;
-        font-weight: 700;
-        color: #8a2be2;
-        display: block;
+    .status-badge.published {
+        background: rgba(40, 167, 69, 0.2);
+        color: #28a745;
     }
 
-    .stat-item .label {
-        font-size: 12px;
+    .status-badge.pending {
+        background: rgba(255, 193, 7, 0.2);
+        color: #ffc107;
+    }
+
+    .status-badge.rejected {
+        background: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+    }
+
+    .status-note {
         color: #888;
-        text-transform: uppercase;
-        letter-spacing: 1px;
+        font-size: 13px;
+        margin-top: 15px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        line-height: 1.5;
     }
 
-    /* Toast Notification */
-    .toast-container {
-        position: fixed;
-        top: 100px;
-        right: 20px;
-        z-index: 9999;
+    .status-note i {
+        color: #ffc107;
+        margin-right: 8px;
     }
 
-    .toast {
+    .alert-box {
+        padding: 15px 20px;
+        border-radius: 12px;
+        margin-bottom: 25px;
         display: flex;
         align-items: center;
         gap: 12px;
-        padding: 18px 25px;
-        border-radius: 14px;
-        color: #fff;
-        font-size: 15px;
-        font-weight: 500;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-        transform: translateX(120%);
-        transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        margin-bottom: 10px;
     }
 
-    .toast.show {
-        transform: translateX(0);
+    .alert-box.error {
+        background: rgba(220, 53, 69, 0.15);
+        border: 1px solid rgba(220, 53, 69, 0.3);
+        color: #ff6b6b;
     }
 
-    .toast.success {
-        background: linear-gradient(135deg, #28a745, #20c997);
+    .alert-box.success {
+        background: rgba(40, 167, 69, 0.15);
+        border: 1px solid rgba(40, 167, 69, 0.3);
+        color: #66ff8c;
     }
 
-    .toast.error {
-        background: linear-gradient(135deg, #dc3545, #e74c3c);
+    .alert-box i {
+        font-size: 20px;
     }
 
-    .toast i {
-        font-size: 22px;
-    }
-
-    /* Responsive */
     @media (max-width: 768px) {
         .editor-header {
             flex-direction: column;
@@ -561,24 +570,31 @@ if (isset($_POST['submit_article'])) {
         <div class="editor-header">
             <div class="editor-title">
                 <div class="editor-title-icon">
-                    <i class="fas fa-pen-nib"></i>
+                    <i class="fas fa-edit"></i>
                 </div>
                 <div>
-                    <h1>Viết bài mới</h1>
-                    <p>Tạo nội dung chất lượng cho cộng đồng</p>
+                    <h1>Chỉnh sửa bài viết</h1>
+                    <p>Cập nhật nội dung bài viết của bạn</p>
                 </div>
             </div>
             <div class="editor-actions">
-                <button type="button" class="btn-action btn-draft" onclick="saveDraft()">
-                    <i class="fas fa-save"></i> Lưu nháp
-                </button>
-                <button type="submit" form="articleForm" name="submit_article" class="btn-action btn-publish">
-                    <i class="fas fa-paper-plane"></i> Gửi duyệt
+                <a href="author-history.php" class="btn-action btn-back">
+                    <i class="fas fa-arrow-left"></i> Quay lại
+                </a>
+                <button type="submit" form="editForm" name="update_article" class="btn-action btn-update">
+                    <i class="fas fa-save"></i> Lưu thay đổi
                 </button>
             </div>
         </div>
 
-        <form method="POST" enctype="multipart/form-data" id="articleForm">
+        <?php if ($error): ?>
+            <div class="alert-box error">
+                <i class="fas fa-exclamation-circle"></i>
+                <span><?= htmlspecialchars($error) ?></span>
+            </div>
+        <?php endif; ?>
+
+        <form method="POST" enctype="multipart/form-data" id="editForm">
             <div class="editor-layout">
                 <!-- Main Content -->
                 <div class="editor-main">
@@ -589,8 +605,8 @@ if (isset($_POST['submit_article'])) {
                             <h3>Tiêu đề bài viết</h3>
                         </div>
                         <div class="card-body">
-                            <input type="text" name="title" class="title-input" placeholder="Nhập tiêu đề hấp dẫn cho bài viết..." maxlength="200" required id="titleInput">
-                            <div class="title-counter"><span id="titleCount">0</span>/200 ký tự</div>
+                            <input type="text" name="title" class="title-input" placeholder="Nhập tiêu đề hấp dẫn..." maxlength="200" required id="titleInput" value="<?= htmlspecialchars($article['title']) ?>">
+                            <div class="title-counter"><span id="titleCount"><?= strlen($article['title']) ?></span>/200 ký tự</div>
                         </div>
                     </div>
 
@@ -601,13 +617,49 @@ if (isset($_POST['submit_article'])) {
                             <h3>Nội dung bài viết</h3>
                         </div>
                         <div class="card-body" style="padding: 0;">
-                            <textarea name="content" id="editor" required></textarea>
+                            <textarea name="content" id="editor" required><?= htmlspecialchars($article['content']) ?></textarea>
                         </div>
                     </div>
                 </div>
 
                 <!-- Sidebar -->
                 <div class="editor-sidebar">
+                    <!-- Status Card -->
+                    <div class="editor-card status-card">
+                        <div class="card-header">
+                            <i class="fas fa-info-circle"></i>
+                            <h3>Trạng thái</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="status-info">
+                                <span>Hiện tại:</span>
+                                <span class="status-badge <?= $article['status'] ?>">
+                                    <?php
+                                    switch ($article['status']) {
+                                        case 'published':
+                                            echo '<i class="fas fa-check-circle me-1"></i> Đã duyệt';
+                                            break;
+                                        case 'pending':
+                                            echo '<i class="fas fa-clock me-1"></i> Chờ duyệt';
+                                            break;
+                                        case 'rejected':
+                                            echo '<i class="fas fa-times-circle me-1"></i> Từ chối';
+                                            break;
+                                        default:
+                                            echo $article['status'];
+                                    }
+                                    ?>
+                                </span>
+                            </div>
+                            <?php if ($user_role !== 'admin'): ?>
+                                <div class="status-note">
+                                    <i class="fas fa-info-circle"></i>
+                                    Sau khi chỉnh sửa, bài viết sẽ được chuyển về trạng thái "Chờ duyệt" để admin xem xét lại.
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
                     <!-- Category Card -->
                     <div class="editor-card">
                         <div class="card-header">
@@ -618,7 +670,9 @@ if (isset($_POST['submit_article'])) {
                             <select name="category_id" class="category-select" required>
                                 <option value="">-- Chọn danh mục --</option>
                                 <?php while ($cat = mysqli_fetch_assoc($categories)): ?>
-                                    <option value="<?= $cat['category_id'] ?>"><?= htmlspecialchars($cat['name']) ?></option>
+                                    <option value="<?= $cat['category_id'] ?>" <?= $cat['category_id'] == $article['category_id'] ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($cat['name']) ?>
+                                    </option>
                                 <?php endwhile; ?>
                             </select>
                         </div>
@@ -632,12 +686,12 @@ if (isset($_POST['submit_article'])) {
                         </div>
                         <div class="card-body">
                             <div class="thumbnail-upload">
-                                <label class="thumbnail-preview" id="thumbnailPreview">
+                                <label class="thumbnail-preview <?= !empty($article['featured_image']) ? 'has-image' : '' ?>" id="thumbnailPreview">
                                     <input type="file" name="thumbnail" class="thumbnail-input" id="thumbnailInput" accept="image/*">
-                                    <img src="" alt="Preview" id="previewImage">
+                                    <img src="<?= !empty($article['featured_image']) ? '../' . htmlspecialchars($article['featured_image']) : '' ?>" alt="Preview" id="previewImage">
                                     <div class="upload-placeholder">
                                         <i class="fas fa-cloud-upload-alt"></i>
-                                        <p>Kéo thả hoặc <span>chọn ảnh</span></p>
+                                        <p>Kéo thả hoặc <span>chọn ảnh mới</span></p>
                                         <p style="font-size: 12px; margin-top: 5px;">PNG, JPG (Tối đa 5MB)</p>
                                     </div>
                                     <button type="button" class="remove-thumbnail" id="removeThumbnail">
@@ -645,62 +699,33 @@ if (isset($_POST['submit_article'])) {
                                     </button>
                                 </label>
                             </div>
+                            <?php if (!empty($article['featured_image'])): ?>
+                                <div class="current-image-info">
+                                    <i class="fas fa-image"></i>
+                                    <span>Ảnh hiện tại sẽ được giữ nếu không chọn ảnh mới</span>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
 
-                    <!-- Word Count Card -->
-                    <div class="editor-card word-count-card">
+                    <!-- Article Info -->
+                    <div class="editor-card">
                         <div class="card-header">
                             <i class="fas fa-chart-bar"></i>
-                            <h3>Thống kê</h3>
+                            <h3>Thông tin bài viết</h3>
                         </div>
                         <div class="card-body">
-                            <div class="stats">
-                                <div class="stat-item">
-                                    <span class="number" id="wordCount">0</span>
-                                    <span class="label">Từ</span>
+                            <div style="display: grid; gap: 15px;">
+                                <div style="display: flex; justify-content: space-between; color: #888; font-size: 14px;">
+                                    <span><i class="fas fa-calendar me-2" style="color: #17a2b8;"></i>Ngày tạo:</span>
+                                    <span style="color: #fff;"><?= date('d/m/Y H:i', strtotime($article['created_at'])) ?></span>
                                 </div>
-                                <div class="stat-item">
-                                    <span class="number" id="charCount">0</span>
-                                    <span class="label">Ký tự</span>
+                                <div style="display: flex; justify-content: space-between; color: #888; font-size: 14px;">
+                                    <span><i class="fas fa-eye me-2" style="color: #17a2b8;"></i>Lượt xem:</span>
+                                    <span style="color: #fff;"><?= number_format($article['views']) ?></span>
                                 </div>
-                                <div class="stat-item">
-                                    <span class="number" id="readTime">0</span>
-                                    <span class="label">Phút đọc</span>
-                                </div>
-                                <div class="stat-item">
-                                    <span class="number" id="paragraphCount">0</span>
-                                    <span class="label">Đoạn văn</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- Tips Card -->
-                    <div class="editor-card tips-card">
-                        <div class="card-header">
-                            <i class="fas fa-lightbulb"></i>
-                            <h3>Mẹo viết bài hay</h3>
-                        </div>
-                        <div class="card-body">
-                            <ul class="tips-list">
-                                <li>
-                                    <i class="fas fa-check-circle"></i>
-                                    <span>Tiêu đề ngắn gọn, hấp dẫn (50-70 ký tự)</span>
-                                </li>
-                                <li>
-                                    <i class="fas fa-check-circle"></i>
-                                    <span>Sử dụng hình ảnh chất lượng cao</span>
-                                </li>
-                                <li>
-                                    <i class="fas fa-check-circle"></i>
-                                    <span>Chia nội dung thành các đoạn ngắn</span>
-                                </li>
-                                <li>
-                                    <i class="fas fa-check-circle"></i>
-                                    <span>Thêm heading để dễ đọc hơn</span>
-                                </li>
-                            </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -708,9 +733,6 @@ if (isset($_POST['submit_article'])) {
         </form>
     </div>
 </div>
-
-<!-- Toast Container -->
-<div class="toast-container" id="toastContainer"></div>
 
 <!-- CKEditor 5 -->
 <script src="https://cdn.ckeditor.com/ckeditor5/41.0.0/classic/ckeditor.js"></script>
@@ -731,14 +753,13 @@ if (isset($_POST['submit_article'])) {
                     'undo', 'redo'
                 ]
             },
-            placeholder: 'Bắt đầu viết nội dung bài viết của bạn...',
+            placeholder: 'Nhập nội dung bài viết...',
             language: 'vi'
         })
         .then(editor => {
             editorInstance = editor;
             editor.model.document.on('change:data', () => {
                 document.querySelector('#editor').value = editor.getData();
-                updateWordCount(editor.getData());
             });
         })
         .catch(error => {
@@ -752,20 +773,6 @@ if (isset($_POST['submit_article'])) {
     titleInput.addEventListener('input', function() {
         titleCount.textContent = this.value.length;
     });
-
-    // Word count function
-    function updateWordCount(content) {
-        const text = content.replace(/<[^>]*>/g, '').trim();
-        const words = text.split(/\s+/).filter(word => word.length > 0);
-        const chars = text.length;
-        const paragraphs = content.split(/<\/p>|<br>/gi).filter(p => p.trim().length > 0).length;
-        const readTime = Math.ceil(words.length / 200);
-
-        document.getElementById('wordCount').textContent = words.length;
-        document.getElementById('charCount').textContent = chars;
-        document.getElementById('readTime').textContent = readTime;
-        document.getElementById('paragraphCount').textContent = paragraphs;
-    }
 
     // Thumbnail preview
     const thumbnailInput = document.getElementById('thumbnailInput');
@@ -796,8 +803,8 @@ if (isset($_POST['submit_article'])) {
     // Drag and drop
     thumbnailPreview.addEventListener('dragover', function(e) {
         e.preventDefault();
-        this.style.borderColor = '#8a2be2';
-        this.style.background = 'rgba(138, 43, 226, 0.15)';
+        this.style.borderColor = '#17a2b8';
+        this.style.background = 'rgba(23, 162, 184, 0.15)';
     });
 
     thumbnailPreview.addEventListener('dragleave', function(e) {
@@ -822,64 +829,6 @@ if (isset($_POST['submit_article'])) {
             reader.readAsDataURL(file);
         }
     });
-
-    // Toast notification
-    function showToast(message, type = 'success') {
-        const container = document.getElementById('toastContainer');
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.innerHTML = `
-            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
-            <span>${message}</span>
-        `;
-        container.appendChild(toast);
-
-        setTimeout(() => toast.classList.add('show'), 10);
-
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 400);
-        }, 4000);
-    }
-
-    // Save draft (placeholder)
-    function saveDraft() {
-        const title = titleInput.value;
-        const content = editorInstance ? editorInstance.getData() : '';
-
-        if (title || content) {
-            localStorage.setItem('articleDraft', JSON.stringify({
-                title: title,
-                content: content,
-                savedAt: new Date().toISOString()
-            }));
-            showToast('Đã lưu bản nháp!', 'success');
-        } else {
-            showToast('Chưa có nội dung để lưu!', 'error');
-        }
-    }
-
-    // Load draft on page load
-    window.addEventListener('load', function() {
-        const draft = localStorage.getItem('articleDraft');
-        if (draft) {
-            const data = JSON.parse(draft);
-            if (data.title) titleInput.value = data.title;
-            if (data.content && editorInstance) {
-                editorInstance.setData(data.content);
-            }
-        }
-    });
-
-    // Show toast on success/error
-    <?php if (isset($_GET['success'])): ?>
-        showToast('🎉 Bài viết đã được gửi chờ duyệt!', 'success');
-        localStorage.removeItem('articleDraft');
-    <?php endif; ?>
-
-    <?php if (!empty($error)): ?>
-        showToast('<?= addslashes($error) ?>', 'error');
-    <?php endif; ?>
 </script>
 
 <?php include 'footer.php'; ?>

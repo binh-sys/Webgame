@@ -1,149 +1,260 @@
 <?php
 require_once('ketnoi.php');
 
-// Truy vấn danh sách yêu thích
-$sql = "
-  SELECT f.favorite_id, f.created_at, 
-         u.display_name AS user_name, 
-         a.title AS article_title
-  FROM favorites f
-  LEFT JOIN users u ON f.user_id = u.user_id
-  LEFT JOIN articles a ON f.article_id = a.article_id
-  ORDER BY f.created_at DESC
-";
+$sql = "SELECT f.*, u.display_name, u.username, a.title as article_title 
+        FROM favorites f 
+        LEFT JOIN users u ON f.user_id = u.user_id 
+        LEFT JOIN articles a ON f.article_id = a.article_id 
+        ORDER BY f.created_at DESC";
 $query = mysqli_query($ketnoi, $sql);
+$total = mysqli_num_rows($query);
 ?>
 
-<div class="content-wrapper">
-  <div class="container-xxl flex-grow-1 container-p-y">
-
-    <!-- Tiêu đề + Nút thêm -->
-    <div class="d-flex justify-content-between align-items-center mb-4" style="gap: 15px;">
-      <h4 class="fw-bold mb-0 d-flex align-items-center" style="gap: 8px;">
-        <i class='bx bx-heart text-danger'></i>
-        <span>Quản lý yêu thích</span>
-      </h4>
-
-      <a href="?page_layout=themyeuthich" class="btn-add">
-        + Thêm yêu thích
-      </a>
-    </div>
-
-    <!-- Bảng danh sách -->
-    <div class="card shadow-sm">
-      <div class="card-header bg-light d-flex align-items-center justify-content-between">
-        <h5 class="mb-0 d-flex align-items-center" style="gap: 6px;">
-          <i class='bx bx-list-ul'></i> Danh sách bài viết được yêu thích
-        </h5>
-      </div>
-
-      <div class="card-body">
-        <div class="table-responsive">
-          <table class="table table-striped table-bordered align-middle text-nowrap favorites-table">
-            <thead class="table-light text-center align-middle">
-              <tr>
-                <th style="width: 5%;">#</th>
-                <th style="width: 25%;">Người dùng</th>
-                <th style="width: 35%;">Bài viết</th>
-                <th style="width: 20%;">Ngày thêm</th>
-                <th style="width: 15%;">Hành động</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              <?php 
-              $i = 1;
-              while ($row = mysqli_fetch_assoc($query)) { ?>
-                <tr>
-                  <td class="text-center fw-bold"><?php echo $i++; ?></td>
-                  <td class="text-center"><?php echo htmlspecialchars($row['user_name']); ?></td>
-                  <td><?php echo htmlspecialchars($row['article_title']); ?></td>
-                  <td class="text-center"><?php echo date('d/m/Y H:i', strtotime($row['created_at'])); ?></td>
-                  <td class="text-center">
-                    <div class="d-flex justify-content-center gap-2">
-                      <a href="?page_layout=suayeuthich&id=<?php echo $row['favorite_id']; ?>" class="btn-edit">✏️ Sửa</a>
-                      <a href="?page_layout=xoayeuthich&id=<?php echo $row['favorite_id']; ?>" 
-                         onclick="return confirm('Bạn có chắc muốn xóa yêu thích này không?');"
-                         class="btn-delete">🗑️ Xóa</a>
-                    </div>
-                  </td>
-                </tr>
-              <?php } ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+<link rel="stylesheet" href="assets/css/admin-forms.css">
 
 <style>
-/* Bảng yêu thích căn đều, thẳng hàng */
-.favorites-table {
-  table-layout: fixed;
-  width: 100%;
-  border-collapse: collapse;
-}
-.favorites-table th, 
-.favorites-table td {
-  vertical-align: middle;
-  padding: 10px 8px;
-  word-wrap: break-word;
-}
-.favorites-table th {
-  background: #0d1b2a;
-  color: #ff5c93;
-  text-shadow: 0 0 5px #ff5c93;
-  border-bottom: 2px solid #ff5c9370;
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
-/* Nút thêm yêu thích */
-.btn-add {
-  background: linear-gradient(90deg, #ff5c93, #ff0066);
-  color: #fff;
-  font-weight: 600;
-  padding: 8px 18px;
-  border-radius: 30px;
-  text-decoration: none;
-  box-shadow: 0 0 10px #ff5c9370;
-  transition: 0.3s;
-}
-.btn-add:hover {
-  box-shadow: 0 0 20px #ff5c93;
-  transform: translateY(-2px);
-  color: #fff;
+.stat-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: var(--transition-normal);
 }
 
-/* Nút hành động */
-.btn-edit, .btn-delete {
-  display: inline-block;
-  padding: 5px 12px;
-  border-radius: 8px;
-  font-weight: 500;
-  color: #fff;
-  transition: 0.3s;
-  min-width: 60px;
-  text-align: center;
-}
-.btn-edit {
-  background: #ffc107;
-  box-shadow: 0 0 8px #ffc10770;
-}
-.btn-edit:hover {
-  background: #ffcf40;
-  box-shadow: 0 0 15px #ffc107;
-}
-.btn-delete {
-  background: #ff4d4d;
-  box-shadow: 0 0 8px #ff4d4d70;
-}
-.btn-delete:hover {
-  background: #ff1a1a;
-  box-shadow: 0 0 15px #ff4d4d;
+.stat-card:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
 }
 
-/* Căn chỉnh tiêu đề và nút */
-.d-flex.justify-content-between.align-items-center {
-  align-items: center !important;
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    background: rgba(255, 71, 107, 0.15);
+    color: #ff476b;
+}
+
+.stat-info h3 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.stat-info p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 4px 0 0;
+}
+
+.table-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+}
+
+.table-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.table-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--primary);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th {
+    background: rgba(0, 212, 255, 0.05);
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 14px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-table td {
+    padding: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    color: var(--text-primary);
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.data-table tbody tr {
+    transition: var(--transition-fast);
+}
+
+.data-table tbody tr:hover {
+    background: rgba(0, 212, 255, 0.03);
+}
+
+.user-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ff476b, #ff8fa3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.article-link {
+    color: var(--primary);
+    text-decoration: none;
+    max-width: 300px;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.article-link:hover {
+    text-decoration: underline;
+}
+
+.action-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    text-decoration: none;
+}
+
+.action-btn.delete:hover {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+    background: rgba(255, 71, 87, 0.1);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
 }
 </style>
+
+<div class="admin-form-container">
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon"><i class='bx bx-heart'></i></div>
+            <div class="stat-info">
+                <h3><?= $total ?></h3>
+                <p>Tổng lượt yêu thích</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-card">
+        <div class="table-header">
+            <div class="table-title">
+                <i class='bx bx-heart'></i>
+                <span>Danh sách yêu thích</span>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:60px">#</th>
+                        <th>Người dùng</th>
+                        <th>Bài viết</th>
+                        <th>Ngày yêu thích</th>
+                        <th style="width:80px">Xóa</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ($total > 0): ?>
+                        <?php $i = 1; while ($row = mysqli_fetch_assoc($query)): ?>
+                        <tr>
+                            <td><strong><?= $i++ ?></strong></td>
+                            <td>
+                                <div class="user-cell">
+                                    <div class="user-avatar"><?= strtoupper(substr($row['username'] ?? 'U', 0, 1)) ?></div>
+                                    <div>
+                                        <div style="font-weight:600"><?= htmlspecialchars($row['display_name'] ?? $row['username'] ?? 'N/A') ?></div>
+                                        <div style="font-size:12px;color:var(--text-muted)">@<?= htmlspecialchars($row['username'] ?? '') ?></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <a href="../../game2/gamebat/article.php?id=<?= $row['article_id'] ?>" target="_blank" class="article-link">
+                                    <?= htmlspecialchars($row['article_title'] ?? 'Bài viết đã xóa') ?>
+                                </a>
+                            </td>
+                            <td><?= date('d/m/Y H:i', strtotime($row['created_at'])) ?></td>
+                            <td>
+                                <a href="?page_layout=xoayeuthich&id=<?= $row['favorite_id'] ?>" class="action-btn delete" title="Xóa"
+                                   onclick="return confirm('Xóa lượt yêu thích này?');">
+                                    <i class='bx bx-trash'></i>
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="5">
+                                <div class="empty-state">
+                                    <i class='bx bx-heart'></i>
+                                    <p>Chưa có lượt yêu thích nào</p>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

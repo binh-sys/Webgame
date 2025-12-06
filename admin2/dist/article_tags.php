@@ -1,164 +1,270 @@
-<?php 
+<?php
 require_once('ketnoi.php');
 
-// Lấy danh sách liên kết bài viết - thẻ game
-$sql = "
-  SELECT 
-    at.id AS article_tag_id,
-    a.title AS article_title,
-    t.name AS tag_name
-  FROM article_tags at
-  LEFT JOIN articles a ON at.article_id = a.article_id
-  LEFT JOIN tags t ON at.tag_id = t.tag_id
-  ORDER BY at.id DESC
-";
+$sql = "SELECT at.*, a.title as article_title, t.name as tag_name 
+        FROM article_tags at 
+        LEFT JOIN articles a ON at.article_id = a.article_id 
+        LEFT JOIN tags t ON at.tag_id = t.tag_id 
+        ORDER BY at.article_id DESC, at.tag_id DESC";
 $query = mysqli_query($ketnoi, $sql);
+$total = mysqli_num_rows($query);
 ?>
 
-<div class="content-wrapper">
-  <div class="container-xxl flex-grow-1 container-p-y">
-
-    <h4 class="fw-bold py-3 mb-4" style="color:#00ffff;text-shadow:0 0 10px #00ffff;">
-      🔗 Quản lý liên kết bài viết & thẻ game
-    </h4>
-
-    <div class="card neon-card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <span class="card-title">Danh sách liên kết</span>
-        <a href="?page_layout=themlienthethegame" class="neon-btn neon-add">
-          <i class="bx bx-plus"></i> Thêm liên kết
-        </a>
-      </div>
-
-      <div class="table-responsive text-nowrap">
-        <table class="table table-dark align-middle neon-table">
-          <thead>
-            <tr>
-              <th>STT</th>
-              <th>Tên bài viết</th>
-              <th>Thẻ game</th>
-              <th>Hành động</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php 
-            $i = 1;
-            while ($row = mysqli_fetch_assoc($query)) { ?>
-              <tr>
-                <td><strong><?php echo $i++; ?></strong></td>
-                <td><?php echo htmlspecialchars($row['article_title']); ?></td>
-                <td><?php echo htmlspecialchars($row['tag_name']); ?></td>
-                <td>
-                  <div class="action-buttons">
-                    <a href="?page_layout=sualienthethegame&id=<?php echo $row['article_tag_id']; ?>" 
-                       class="neon-btn neon-edit">
-                      <i class="bx bx-edit"></i> Sửa
-                    </a>
-                    <a href="?page_layout=xoalienthethegame&id=<?php echo $row['article_tag_id']; ?>" 
-                       class="neon-btn neon-delete"
-                       onclick="return confirm('Bạn có chắc chắn muốn xóa liên kết này không?');">
-                      <i class="bx bx-trash"></i> Xóa
-                    </a>
-                  </div>
-                </td>
-              </tr>
-            <?php } ?>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
+<link rel="stylesheet" href="assets/css/admin-forms.css">
 
 <style>
-/* --- Neon Base --- */
-.neon-card {
-  background: rgba(10, 10, 25, 0.95);
-  border: 1px solid #00ffff55;
-  border-radius: 16px;
-  box-shadow: 0 0 20px #00ffff33;
-  overflow: hidden;
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
-.card-title {
-  color: #00ffff;
-  font-weight: 600;
-  font-size: 18px;
-  text-shadow: 0 0 8px #00ffff;
+.stat-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: var(--transition-normal);
 }
 
-.neon-table {
-  color: #fff;
-  background-color: transparent;
+.stat-card:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
 }
 
-.neon-table thead tr {
-  background: linear-gradient(90deg, #001a1a, #002b33);
-  color: #00ffff;
-  text-shadow: 0 0 5px #00ffff;
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    background: rgba(0, 212, 255, 0.15);
+    color: var(--primary);
 }
 
-.neon-table tbody tr:hover {
-  background: rgba(0, 255, 255, 0.07);
-  transition: 0.2s ease;
+.stat-info h3 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
 }
 
-/* --- Neon Buttons --- */
-.neon-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 14px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
-  transition: 0.25s;
-  border: none;
+.stat-info p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 4px 0 0;
 }
 
-.neon-btn i {
-  font-size: 16px;
+.table-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
 }
 
-/* Thêm */
-.neon-add {
-  background: linear-gradient(90deg, #00ffff, #0099ff);
-  color: #000;
-  box-shadow: 0 0 12px #00ffff88;
-}
-.neon-add:hover {
-  box-shadow: 0 0 20px #00ffffcc;
-  transform: translateY(-2px);
-}
-
-/* Sửa */
-.neon-edit {
-  background: linear-gradient(90deg, #ffcc00, #ffdd33);
-  color: #000;
-  box-shadow: 0 0 10px #ffcc00aa;
-}
-.neon-edit:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 20px #ffcc00ff;
+.table-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
 }
 
-/* Xóa */
-.neon-delete {
-  background: linear-gradient(90deg, #ff0033, #cc0044);
-  color: #fff;
-  box-shadow: 0 0 10px #ff003388;
-}
-.neon-delete:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 18px #ff0033cc;
+.table-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--primary);
+    font-size: 16px;
+    font-weight: 600;
 }
 
-/* Bố cục nút */
-.action-buttons {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th {
+    background: rgba(0, 212, 255, 0.05);
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 14px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-table td {
+    padding: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    color: var(--text-primary);
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.data-table tbody tr {
+    transition: var(--transition-fast);
+}
+
+.data-table tbody tr:hover {
+    background: rgba(0, 212, 255, 0.03);
+}
+
+.article-link {
+    color: var(--primary);
+    text-decoration: none;
+    max-width: 300px;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.article-link:hover {
+    text-decoration: underline;
+}
+
+.tag-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: linear-gradient(135deg, rgba(0, 255, 136, 0.15), rgba(0, 212, 255, 0.1));
+    border: 1px solid rgba(0, 255, 136, 0.3);
+    border-radius: 20px;
+    color: var(--accent-green);
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.action-btns {
+    display: flex;
+    gap: 8px;
+}
+
+.action-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    text-decoration: none;
+}
+
+.action-btn.edit:hover {
+    border-color: var(--accent-yellow);
+    color: var(--accent-yellow);
+    background: rgba(255, 213, 0, 0.1);
+}
+
+.action-btn.delete:hover {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+    background: rgba(255, 71, 87, 0.1);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
 }
 </style>
+
+<div class="admin-form-container">
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon"><i class='bx bx-link'></i></div>
+            <div class="stat-info">
+                <h3><?= $total ?></h3>
+                <p>Tổng liên kết thẻ</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-card">
+        <div class="table-header">
+            <div class="table-title">
+                <i class='bx bx-link-alt'></i>
+                <span>Liên kết bài viết - Thẻ game</span>
+            </div>
+            <a href="?page_layout=themlienthethegame" class="btn btn-success">
+                <i class='bx bx-plus'></i> Thêm liên kết
+            </a>
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:60px">#</th>
+                        <th>Bài viết</th>
+                        <th>Thẻ game</th>
+                        <th style="width:120px">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ($total > 0): ?>
+                        <?php $i = 1; while ($row = mysqli_fetch_assoc($query)): ?>
+                        <tr>
+                            <td><strong><?= $i++ ?></strong></td>
+                            <td>
+                                <a href="../../game2/gamebat/article.php?id=<?= $row['article_id'] ?>" target="_blank" class="article-link">
+                                    <?= htmlspecialchars($row['article_title'] ?? 'Bài viết đã xóa') ?>
+                                </a>
+                            </td>
+                            <td>
+                                <span class="tag-badge">
+                                    <i class='bx bx-hash'></i>
+                                    <?= htmlspecialchars($row['tag_name'] ?? 'Thẻ đã xóa') ?>
+                                </span>
+                            </td>
+                            <td>
+                                <div class="action-btns">
+                                    <a href="?page_layout=sualienthethegame&article_id=<?= $row['article_id'] ?>&tag_id=<?= $row['tag_id'] ?>" class="action-btn edit" title="Sửa">
+                                        <i class='bx bx-edit'></i>
+                                    </a>
+                                    <a href="?page_layout=xoalienthethegame&article_id=<?= $row['article_id'] ?>&tag_id=<?= $row['tag_id'] ?>" class="action-btn delete" title="Xóa"
+                                       onclick="return confirm('Xóa liên kết này?');">
+                                        <i class='bx bx-trash'></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="4">
+                                <div class="empty-state">
+                                    <i class='bx bx-link'></i>
+                                    <p>Chưa có liên kết nào</p>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

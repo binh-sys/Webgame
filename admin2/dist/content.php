@@ -1,469 +1,757 @@
 <?php
-// content.php
-// Yêu cầu: $ketnoi (DB connection) đã tồn tại từ index.php trước khi include file này.
+// content.php - Dashboard trang tổng quan chuyên nghiệp
+require_once('ketnoi.php');
 
-// Nếu một vài biến tổng chưa được định nghĩa ở index, tính dự phòng ở đây:
-if (!isset($ketnoi)) {
-    trigger_error('Database connection $ketnoi not found. Please include this file from index.php where $ketnoi exists.', E_USER_WARNING);
-    $ketnoi = null;
-}
+// Thống kê tổng quan
+$total_articles = (int)($ketnoi->query("SELECT COUNT(*) AS total FROM articles")->fetch_assoc()['total'] ?? 0);
+$total_users = (int)($ketnoi->query("SELECT COUNT(*) AS total FROM users")->fetch_assoc()['total'] ?? 0);
+$total_comments = (int)($ketnoi->query("SELECT COUNT(*) AS total FROM comments")->fetch_assoc()['total'] ?? 0);
+$total_favorites = (int)($ketnoi->query("SELECT COUNT(*) AS total FROM favorites")->fetch_assoc()['total'] ?? 0);
+$total_categories = (int)($ketnoi->query("SELECT COUNT(*) AS total FROM categories")->fetch_assoc()['total'] ?? 0);
+$total_tags = (int)($ketnoi->query("SELECT COUNT(*) AS total FROM tags")->fetch_assoc()['total'] ?? 0);
 
-function safe_count($ketnoi, $sql) {
-    if (!$ketnoi) return 0;
-    $res = $ketnoi->query($sql);
-    if ($res) {
-        $row = $res->fetch_assoc();
-        return (int)($row['total'] ?? 0);
-    }
-    return 0;
-}
+// Bài viết đã xuất bản vs nháp
+$published = (int)($ketnoi->query("SELECT COUNT(*) AS c FROM articles WHERE status='published'")->fetch_assoc()['c'] ?? 0);
+$draft = (int)($ketnoi->query("SELECT COUNT(*) AS c FROM articles WHERE status='draft'")->fetch_assoc()['c'] ?? 0);
 
-if (!isset($total_articles)) {
-    $total_articles = safe_count($ketnoi, "SELECT COUNT(*) AS total FROM articles");
-}
-if (!isset($total_users)) {
-    $total_users = safe_count($ketnoi, "SELECT COUNT(*) AS total FROM users");
-}
-if (!isset($total_comments)) {
-    $total_comments = safe_count($ketnoi, "SELECT COUNT(*) AS total FROM comments");
-}
-if (!isset($total_favorites)) {
-    $total_favorites = safe_count($ketnoi, "SELECT COUNT(*) AS total FROM favorites");
+// Bình luận chờ duyệt
+$pending_comments = (int)($ketnoi->query("SELECT COUNT(*) AS c FROM comments WHERE status='pending'")->fetch_assoc()['c'] ?? 0);
+
+// Tổng lượt xem
+$total_views = (int)($ketnoi->query("SELECT SUM(views) AS total FROM articles")->fetch_assoc()['total'] ?? 0);
+
+// Dữ liệu biểu đồ - Bài viết theo danh mục
+$categories_data = [];
+$q = $ketnoi->query("SELECT c.name, COUNT(a.article_id) AS cnt FROM categories c LEFT JOIN articles a ON c.category_id=a.category_id GROUP BY c.category_id ORDER BY cnt DESC LIMIT 6");
+while ($r = $q->fetch_assoc()) {
+    $categories_data[] = $r;
 }
 
-// Charts data fallback
-if (!isset($categories) || !isset($counts)) {
-    $categories = $counts = [];
-    if ($ketnoi) {
-        $q = $ketnoi->query("SELECT c.name AS category, COUNT(a.article_id) AS cnt FROM categories c LEFT JOIN articles a ON c.category_id=a.category_id GROUP BY c.category_id");
-        if ($q) {
-            while ($r = $q->fetch_assoc()) {
-                $categories[] = $r['category'];
-                $counts[] = (int)$r['cnt'];
-            }
-        }
-    }
+// Dữ liệu biểu đồ - Vai trò người dùng
+$roles_data = [];
+$qr = $ketnoi->query("SELECT role, COUNT(user_id) AS total FROM users GROUP BY role");
+while ($r = $qr->fetch_assoc()) {
+    $roles_data[] = $r;
 }
 
-if (!isset($roles) || !isset($role_counts)) {
-    $roles = $role_counts = [];
-    if ($ketnoi) {
-        $qr = $ketnoi->query("SELECT role, COUNT(user_id) AS total FROM users GROUP BY role");
-        if ($qr) {
-            while ($r = $qr->fetch_assoc()) {
-                $roles[] = ucfirst($r['role']);
-                $role_counts[] = (int)$r['total'];
-            }
-        }
-    }
-}
+// Bài viết gần đây
+$recent_articles = $ketnoi->query("SELECT a.*, c.name as category_name, u.display_name as author_name 
+    FROM articles a 
+    LEFT JOIN categories c ON a.category_id = c.category_id 
+    LEFT JOIN users u ON a.author_id = u.user_id 
+    ORDER BY a.created_at DESC LIMIT 5");
+
+// Bình luận gần đây
+$recent_comments = $ketnoi->query("SELECT c.*, u.display_name, u.username, a.title as article_title 
+    FROM comments c 
+    LEFT JOIN users u ON c.user_id = u.user_id 
+    LEFT JOIN articles a ON c.article_id = a.article_id 
+    ORDER BY c.created_at DESC LIMIT 5");
+
+// Top bài viết xem nhiều
+$top_articles = $ketnoi->query("SELECT title, views, created_at FROM articles ORDER BY views DESC LIMIT 5");
 ?>
 
-<!-- CONTENT: Dashboard (neon arcade grid + charts + lists) -->
-<div class="content-wrapper">
+<link rel="stylesheet" href="assets/css/admin-forms.css">
 
-  <!-- STYLES (scoped minimal) -->
-  <style>
-    /* Grid stat squares */
-    .dashboard-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      gap: 18px;
-      align-items: stretch;
-      margin-bottom: 18px;
-    }
+<style>
+/* Dashboard Styles */
+.dashboard-container {
+    padding: 0;
+}
 
-    .stat-square {
-      position: relative;
-      background: radial-gradient(circle at 10% 10%, rgba(255,255,255,0.02), rgba(6,8,12,0.75));
-      border-radius: 14px;
-      padding: 18px;
-      min-height: 140px;
-      overflow: hidden;
-      transition: transform .28s ease, box-shadow .28s ease;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: flex-start;
-      border: 2px solid transparent;
-    }
+/* Welcome Banner */
+.welcome-banner {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(168, 85, 247, 0.1));
+    border: 1px solid rgba(0, 212, 255, 0.2);
+    border-radius: 20px;
+    padding: 28px 32px;
+    margin-bottom: 28px;
+    position: relative;
+    overflow: hidden;
+}
 
-    .stat-square .icon {
-      font-size: 22px;
-      margin-bottom: 8px;
-      filter: drop-shadow(0 6px 18px rgba(0,0,0,0.5));
-    }
+.welcome-banner::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(0, 212, 255, 0.1) 0%, transparent 70%);
+    pointer-events: none;
+}
 
-    .stat-square h5 { margin:0; font-size:0.95rem; font-weight:700; color:#e9ffff; }
-    .stat-square h2 { margin:6px 0 0 0; font-size:2.2rem; color:#ffffff; letter-spacing:0.6px; }
-    .stat-square p { margin:6px 0 0 0; font-size:0.85rem; color:rgba(255,255,255,0.65); }
+.welcome-banner h1 {
+    margin: 0 0 8px;
+    font-size: 26px;
+    font-weight: 700;
+    color: #fff;
+}
 
-    /* neon border overlay */
-    .stat-square .neon-border { position:absolute; inset:0; border-radius:14px; pointer-events:none; }
-    .stat-square:hover {
-      transform: translateY(-6px) scale(1.01);
-      box-shadow: 0 18px 44px rgba(255,75,225,0.06), inset 0 0 24px rgba(0,230,255,0.02);
-    }
+.welcome-banner p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 15px;
+}
 
-    /* quick actions */
-    .quick-actions {
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      justify-content:center;
-      margin-bottom:18px;
-    }
-    .neon-action {
-      padding:10px 14px;
-      border-radius:12px;
-      font-weight:700;
-      text-decoration:none;
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      cursor:pointer;
-      transition: transform .18s, box-shadow .18s;
-      color:#031018;
-    }
-    .neon-action:hover { transform: translateY(-3px); }
+.welcome-banner .date-time {
+    position: absolute;
+    right: 32px;
+    top: 50%;
+    transform: translateY(-50%);
+    text-align: right;
+    color: var(--text-muted);
+    font-size: 14px;
+}
 
-    .neon-action.blue{ background: linear-gradient(90deg, #00e6ff, #4db8ff); box-shadow: 0 10px 30px rgba(0,230,255,0.06); }
-    .neon-action.purple{ background: linear-gradient(90deg, #b36bff, #ff4be1); color:#fff; box-shadow:0 10px 30px rgba(255,75,225,0.06); }
-    .neon-action.green{ background: linear-gradient(90deg, #00ffa3, #66ffc3); box-shadow:0 10px 30px rgba(0,255,163,0.04); }
-    .neon-action.pink{ background: linear-gradient(90deg, #ff8fd1, #ff4be1); box-shadow:0 10px 30px rgba(255,75,225,0.05); }
+.welcome-banner .date-time .time {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--primary);
+    font-family: 'Orbitron', monospace;
+}
 
-    /* charts containers adjustments */
-    .chart-card { padding:12px; border-radius:12px; min-height:300px; position:relative; overflow:hidden; }
-    .chart-card canvas { width:100% !important; height:280px !important; }
+/* Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 28px;
+}
 
-    /* lists */
-    .neon-list { list-style:none; padding-left:0; margin:8px 0 0 0; color:#cfefff; }
-    .neon-list li { padding:8px 6px; border-radius:8px; transition: background .12s; }
-    .neon-list li:hover { background: rgba(255,255,255,0.02); transform: translateX(4px); }
+@media (max-width: 1200px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
 
-    /* responsive small tweaks */
-    @media (max-width: 768px) {
-      .stat-square { min-height:120px; padding:14px; }
-      .chart-card canvas { height:220px !important; }
-    }
+@media (max-width: 600px) {
+    .stats-grid { grid-template-columns: 1fr; }
+}
 
-    /* small animated label style (for Chart micro-interactions) */
-    .chart-badge {
-      position:absolute;
-      top:12px;
-      right:12px;
-      background:linear-gradient(90deg,#ff4be1,#00e6ff);
-      color:#fff;
-      padding:6px 10px;
-      border-radius:999px;
-      font-weight:700;
-      font-size:0.85rem;
-      box-shadow:0 8px 20px rgba(255,75,225,0.06);
-      transform-origin: right top;
-      transform: translateY(-6px) scale(.98);
-      transition: transform .28s ease, opacity .28s;
-      opacity:0.98;
-    }
-  </style>
+.stat-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
 
-  <!-- STAT SQUARES (grid horizontal) -->
-  <div class="dashboard-grid" aria-label="Thống kê nhanh">
-    <?php
-      $cards = [
-        ['icon'=>'📰','title'=>'BÀI VIẾT','count'=>$total_articles,'color'=>'#00e6ff','desc'=>'Tổng số bài viết'],
-        ['icon'=>'👥','title'=>'NGƯỜI DÙNG','count'=>$total_users,'color'=>'#b36bff','desc'=>'Tổng tài khoản'],
-        ['icon'=>'💬','title'=>'BÌNH LUẬN','count'=>$total_comments,'color'=>'#00ffa3','desc'=>'Tổng bình luận'],
-        ['icon'=>'❤️','title'=>'YÊU THÍCH','count'=>$total_favorites,'color'=>'#ff4be1','desc'=>'Tổng lượt yêu thích']
-      ];
-      foreach ($cards as $c):
-    ?>
-      <div class="stat-square" style="border-color: <?= htmlspecialchars($c['color']) ?>20;">
-        <div class="icon" style="color: <?= htmlspecialchars($c['color']) ?>;"><?= $c['icon'] ?></div>
-        <h5 style="color: <?= htmlspecialchars($c['color']) ?>;"><?= $c['title'] ?></h5>
-        <h2><?= number_format($c['count']) ?></h2>
-        <p><?= htmlspecialchars($c['desc']) ?></p>
-        <div class="neon-border" style="--neon-color: <?= htmlspecialchars($c['color']) ?>"></div>
-      </div>
-    <?php endforeach; ?>
-  </div>
+.stat-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-hover);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
 
-  <!-- QUICK ACTIONS -->
-  <div style="margin-bottom:18px;text-align:center">
+.stat-card .stat-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    margin-bottom: 16px;
+}
+
+.stat-card .stat-icon.cyan { background: rgba(0, 212, 255, 0.15); color: var(--primary); }
+.stat-card .stat-icon.purple { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+.stat-card .stat-icon.green { background: rgba(0, 255, 136, 0.15); color: #00ff88; }
+.stat-card .stat-icon.pink { background: rgba(255, 71, 107, 0.15); color: #ff476b; }
+.stat-card .stat-icon.orange { background: rgba(255, 149, 0, 0.15); color: #ff9500; }
+.stat-card .stat-icon.blue { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+
+.stat-card h3 {
+    font-size: 32px;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 6px;
+    font-family: 'Orbitron', sans-serif;
+}
+
+.stat-card p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.stat-card .stat-trend {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+}
+
+.stat-card .stat-trend.up {
+    background: rgba(0, 255, 136, 0.15);
+    color: #00ff88;
+}
+
+.stat-card .stat-trend.down {
+    background: rgba(255, 71, 87, 0.15);
+    color: #ff4757;
+}
+
+/* Quick Actions */
+.quick-actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 28px;
+}
+
+@media (max-width: 900px) {
+    .quick-actions { grid-template-columns: repeat(2, 1fr); }
+}
+
+.quick-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px;
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    text-decoration: none;
+    color: var(--text-primary);
+    transition: all 0.25s ease;
+}
+
+.quick-action-btn:hover {
+    border-color: var(--primary);
+    background: rgba(0, 212, 255, 0.05);
+    transform: translateX(4px);
+}
+
+.quick-action-btn i {
+    font-size: 24px;
+    color: var(--primary);
+}
+
+.quick-action-btn span {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+/* Dashboard Grid */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 24px;
+    margin-bottom: 28px;
+}
+
+@media (max-width: 1100px) {
+    .dashboard-grid { grid-template-columns: 1fr; }
+}
+
+/* Dashboard Card */
+.dashboard-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.dashboard-card-header {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.dashboard-card-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.dashboard-card-header h3 i {
+    font-size: 20px;
+}
+
+.dashboard-card-header .view-all {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 13px;
+    transition: color 0.2s;
+}
+
+.dashboard-card-header .view-all:hover {
+    color: var(--primary);
+}
+
+.dashboard-card-body {
+    padding: 20px 22px;
+}
+
+/* Recent Articles List */
+.article-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.article-item:last-child {
+    border-bottom: none;
+}
+
+.article-thumb {
+    width: 60px;
+    height: 60px;
+    border-radius: 10px;
+    background: var(--bg-input);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 24px;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.article-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.article-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.article-info h4 {
+    margin: 0 0 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.article-info .meta {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.article-info .meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.article-status {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.article-status.published {
+    background: rgba(0, 255, 136, 0.15);
+    color: #00ff88;
+}
+
+.article-status.draft {
+    background: rgba(255, 149, 0, 0.15);
+    color: #ff9500;
+}
+
+/* Comment Item */
+.comment-item {
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.comment-item:last-child {
+    border-bottom: none;
+}
+
+.comment-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.comment-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), #a855f7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.comment-user {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.comment-time {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-left: auto;
+}
+
+.comment-content {
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.comment-article {
+    font-size: 12px;
+    color: var(--primary);
+}
+
+/* Top Articles */
+.top-article-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.top-article-item:last-child {
+    border-bottom: none;
+}
+
+.top-rank {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.top-rank.gold { background: linear-gradient(135deg, #ffd700, #ffaa00); color: #000; }
+.top-rank.silver { background: linear-gradient(135deg, #c0c0c0, #a0a0a0); color: #000; }
+.top-rank.bronze { background: linear-gradient(135deg, #cd7f32, #b87333); color: #fff; }
+.top-rank.normal { background: var(--bg-input); color: var(--text-muted); }
+
+.top-article-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.top-article-info h4 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.top-article-views {
+    font-size: 13px;
+    color: var(--primary);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Chart Container */
+.chart-container {
+    height: 280px;
+    position: relative;
+}
+
+/* Mini Stats */
+.mini-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.mini-stat {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+}
+
+.mini-stat h4 {
+    margin: 0 0 4px;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.mini-stat p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+</style>
+
+<div class="dashboard-container">
+    <!-- Welcome Banner -->
+    <div class="welcome-banner">
+        <h1>👋 Chào mừng trở lại, Admin!</h1>
+        <p>Đây là tổng quan hoạt động của hệ thống GameNova Pro</p>
+        <div class="date-time">
+            <div class="time" id="currentTime">--:--</div>
+            <div id="currentDate"><?= date('l, d/m/Y') ?></div>
+        </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon cyan"><i class='bx bx-news'></i></div>
+            <h3><?= number_format($total_articles) ?></h3>
+            <p>Tổng bài viết</p>
+            <span class="stat-trend up">+<?= $published ?> xuất bản</span>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon purple"><i class='bx bx-group'></i></div>
+            <h3><?= number_format($total_users) ?></h3>
+            <p>Người dùng</p>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon green"><i class='bx bx-message-dots'></i></div>
+            <h3><?= number_format($total_comments) ?></h3>
+            <p>Bình luận</p>
+            <?php if ($pending_comments > 0): ?>
+            <span class="stat-trend down"><?= $pending_comments ?> chờ duyệt</span>
+            <?php endif; ?>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon pink"><i class='bx bx-heart'></i></div>
+            <h3><?= number_format($total_favorites) ?></h3>
+            <p>Lượt yêu thích</p>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
     <div class="quick-actions">
-      <a class="neon-action blue" href="#section-users">👤 Quản lý người dùng</a>
-      <a class="neon-action purple" href="#section-articles">📰 Quản lý bài viết</a>
-      <a class="neon-action green" href="#section-comments">💬 Quản lý bình luận</a>
-      <a class="neon-action pink" href="#section-favorites">❤️ Quản lý yêu thích</a>
+        <a href="?page_layout=them_baiviet" class="quick-action-btn">
+            <i class='bx bx-plus-circle'></i>
+            <span>Thêm bài viết</span>
+        </a>
+        <a href="?page_layout=themchuyenmuc" class="quick-action-btn">
+            <i class='bx bx-folder-plus'></i>
+            <span>Thêm chuyên mục</span>
+        </a>
+        <a href="?page_layout=themus" class="quick-action-btn">
+            <i class='bx bx-user-plus'></i>
+            <span>Thêm người dùng</span>
+        </a>
+        <a href="?page_layout=danhsachbinhluan&status=pending" class="quick-action-btn">
+            <i class='bx bx-check-circle'></i>
+            <span>Duyệt bình luận (<?= $pending_comments ?>)</span>
+        </a>
     </div>
-  </div>
 
-  <!-- CHARTS -->
-  <div class="row" style="margin-bottom:18px;">
-    <div class="col-md-6" style="width:50%; padding:0 9px;">
-      <div class="card chart-card neon-card">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <h4 style="margin:0;color:#cfefff;">📊 Bài viết theo danh mục</h4>
-          <div class="chart-badge" id="badge-cat">Top</div>
+    <!-- Main Dashboard Grid -->
+    <div class="dashboard-grid">
+        <!-- Recent Articles -->
+        <div class="dashboard-card">
+            <div class="dashboard-card-header">
+                <h3><i class='bx bx-news'></i> Bài viết gần đây</h3>
+                <a href="?page_layout=danhsachbaiviet" class="view-all">Xem tất cả →</a>
+            </div>
+            <div class="dashboard-card-body">
+                <?php while ($article = $recent_articles->fetch_assoc()): ?>
+                <div class="article-item">
+                    <div class="article-thumb">
+                        <?php if (!empty($article['featured_image'])): ?>
+                            <img src="../../game2/uploads/<?= htmlspecialchars($article['featured_image']) ?>" alt="">
+                        <?php else: ?>
+                            <i class='bx bx-image'></i>
+                        <?php endif; ?>
+                    </div>
+                    <div class="article-info">
+                        <h4><?= htmlspecialchars($article['title']) ?></h4>
+                        <div class="meta">
+                            <span><i class='bx bx-folder'></i> <?= htmlspecialchars($article['category_name'] ?? 'Chưa phân loại') ?></span>
+                            <span><i class='bx bx-user'></i> <?= htmlspecialchars($article['author_name'] ?? 'Ẩn danh') ?></span>
+                            <span><i class='bx bx-show'></i> <?= number_format($article['views']) ?></span>
+                        </div>
+                    </div>
+                    <span class="article-status <?= $article['status'] ?>">
+                        <?= $article['status'] == 'published' ? 'Xuất bản' : 'Nháp' ?>
+                    </span>
+                </div>
+                <?php endwhile; ?>
+            </div>
         </div>
-        <canvas id="chartCategories"></canvas>
-      </div>
-    </div>
 
-    <div class="col-md-6" style="width:50%; padding:0 9px;">
-      <div class="card chart-card neon-card">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <h4 style="margin:0;color:#cfefff;">🧑‍💻 Vai trò người dùng</h4>
-          <div class="chart-badge" id="badge-role">Tỉ lệ</div>
+        <!-- Sidebar Stats -->
+        <div>
+            <!-- Mini Stats -->
+            <div class="dashboard-card" style="margin-bottom:20px;">
+                <div class="dashboard-card-header">
+                    <h3><i class='bx bx-bar-chart-alt-2'></i> Thống kê nhanh</h3>
+                </div>
+                <div class="dashboard-card-body">
+                    <div class="mini-stats">
+                        <div class="mini-stat">
+                            <h4><?= number_format($total_views) ?></h4>
+                            <p>Tổng lượt xem</p>
+                        </div>
+                        <div class="mini-stat">
+                            <h4><?= $total_categories ?></h4>
+                            <p>Chuyên mục</p>
+                        </div>
+                        <div class="mini-stat">
+                            <h4><?= $total_tags ?></h4>
+                            <p>Thẻ game</p>
+                        </div>
+                        <div class="mini-stat">
+                            <h4><?= $draft ?></h4>
+                            <p>Bài nháp</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Articles -->
+            <div class="dashboard-card">
+                <div class="dashboard-card-header">
+                    <h3><i class='bx bx-trophy'></i> Top bài viết</h3>
+                </div>
+                <div class="dashboard-card-body">
+                    <?php 
+                    $rank = 1;
+                    while ($top = $top_articles->fetch_assoc()): 
+                        $rankClass = $rank == 1 ? 'gold' : ($rank == 2 ? 'silver' : ($rank == 3 ? 'bronze' : 'normal'));
+                    ?>
+                    <div class="top-article-item">
+                        <div class="top-rank <?= $rankClass ?>"><?= $rank ?></div>
+                        <div class="top-article-info">
+                            <h4><?= htmlspecialchars($top['title']) ?></h4>
+                        </div>
+                        <div class="top-article-views">
+                            <i class='bx bx-show'></i> <?= number_format($top['views']) ?>
+                        </div>
+                    </div>
+                    <?php $rank++; endwhile; ?>
+                </div>
+            </div>
         </div>
-        <canvas id="chartRoles"></canvas>
-      </div>
     </div>
-  </div>
 
-  <!-- RECENT LISTS -->
-  <div id="section-users" class="row" style="margin-bottom:14px;">
-    <div class="col-md-12" style="width:100%; padding:0 9px;">
-      <div class="card neon-card p-3">
-        <h4 style="margin:0 0 8px 0;color:#cfefff">Người dùng gần đây</h4>
-        <?php
-          $users = $ketnoi ? $ketnoi->query("SELECT * FROM users ORDER BY created_at DESC LIMIT 5") : null;
-        ?>
-        <div class="table-responsive" style="margin-top:8px;">
-          <table class="table" style="width:100%">
-            <thead>
-              <tr>
-                <th style="text-align:left;color:#cfefff">ID</th>
-                <th style="text-align:left;color:#cfefff">Tên đăng nhập</th>
-                <th style="text-align:left;color:#cfefff">Email</th>
-                <th style="text-align:left;color:#cfefff">Quyền</th>
-                <th style="text-align:left;color:#cfefff">Ngày tạo</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php if ($users): while($u = $users->fetch_assoc()): ?>
-                <tr>
-                  <td style="padding:8px 6px;"><?= $u['user_id'] ?></td>
-                  <td><?= htmlspecialchars($u['username']) ?></td>
-                  <td><?= htmlspecialchars($u['email']) ?></td>
-                  <td><?= ucfirst($u['role']) ?></td>
-                  <td><?= $u['created_at'] ?></td>
-                </tr>
-              <?php endwhile; else: ?>
-                <tr><td colspan="5">Không có dữ liệu</td></tr>
-              <?php endif; ?>
-            </tbody>
-          </table>
+    <!-- Second Row -->
+    <div class="dashboard-grid">
+        <!-- Recent Comments -->
+        <div class="dashboard-card">
+            <div class="dashboard-card-header">
+                <h3><i class='bx bx-message-dots'></i> Bình luận gần đây</h3>
+                <a href="?page_layout=danhsachbinhluan" class="view-all">Xem tất cả →</a>
+            </div>
+            <div class="dashboard-card-body">
+                <?php while ($comment = $recent_comments->fetch_assoc()): ?>
+                <div class="comment-item">
+                    <div class="comment-header">
+                        <div class="comment-avatar"><?= strtoupper(substr($comment['username'] ?? 'U', 0, 1)) ?></div>
+                        <span class="comment-user"><?= htmlspecialchars($comment['display_name'] ?? $comment['username'] ?? 'Ẩn danh') ?></span>
+                        <span class="comment-time"><?= date('d/m H:i', strtotime($comment['created_at'])) ?></span>
+                    </div>
+                    <div class="comment-content"><?= htmlspecialchars($comment['content']) ?></div>
+                    <div class="comment-article">📰 <?= htmlspecialchars($comment['article_title'] ?? 'Bài viết') ?></div>
+                </div>
+                <?php endwhile; ?>
+            </div>
         </div>
-      </div>
-    </div>
-  </div>
 
-  <div id="section-articles" class="row" style="margin-bottom:14px;">
-    <div class="col-md-12" style="width:100%; padding:0 9px;">
-      <div class="card neon-card p-3">
-        <h4 style="margin:0 0 8px 0;color:#cfefff">Bài viết gần đây</h4>
-        <?php $arts = $ketnoi ? $ketnoi->query("SELECT title, created_at FROM articles ORDER BY created_at DESC LIMIT 5") : null; ?>
-        <ul class="neon-list" style="margin-top:8px;">
-          <?php if($arts): while($a = $arts->fetch_assoc()): ?>
-            <li>📰 <b><?= htmlspecialchars($a['title']) ?></b> <small style="color:rgba(255,255,255,0.55)">(<?= $a['created_at'] ?>)</small></li>
-          <?php endwhile; else: ?>
-            <li>Không có dữ liệu</li>
-          <?php endif; ?>
-        </ul>
-      </div>
+        <!-- Charts -->
+        <div class="dashboard-card">
+            <div class="dashboard-card-header">
+                <h3><i class='bx bx-pie-chart-alt-2'></i> Bài viết theo danh mục</h3>
+            </div>
+            <div class="dashboard-card-body">
+                <div class="chart-container">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
-
-  <div id="section-comments" class="row" style="margin-bottom:14px;">
-    <div class="col-md-12" style="width:100%; padding:0 9px;">
-      <div class="card neon-card p-3">
-        <h4 style="margin:0 0 8px 0;color:#cfefff">Bình luận mới nhất</h4>
-        <?php $coms = $ketnoi ? $ketnoi->query("SELECT c.content,u.username,c.created_at FROM comments c JOIN users u ON c.user_id=u.user_id ORDER BY c.created_at DESC LIMIT 5") : null; ?>
-        <ul class="neon-list" style="margin-top:8px;">
-          <?php if($coms): while($c = $coms->fetch_assoc()): ?>
-            <li>💬 <b><?= htmlspecialchars($c['username']) ?></b>: <?= htmlspecialchars($c['content']) ?> <small style="color:rgba(255,255,255,0.55)">(<?= $c['created_at'] ?>)</small></li>
-          <?php endwhile; else: ?>
-            <li>Không có dữ liệu</li>
-          <?php endif; ?>
-        </ul>
-      </div>
-    </div>
-  </div>
-
-  <div id="section-favorites" class="row" style="margin-bottom:60px;">
-    <div class="col-md-12" style="width:100%; padding:0 9px;">
-      <div class="card neon-card p-3">
-        <h4 style="margin:0 0 8px 0;color:#cfefff">Yêu thích gần đây</h4>
-        <?php $favs = $ketnoi ? $ketnoi->query("SELECT f.created_at,u.username,a.title FROM favorites f JOIN users u ON f.user_id = u.user_id JOIN articles a ON f.article_id=a.article_id ORDER BY f.created_at DESC LIMIT 5") : null; ?>
-        <ul class="neon-list" style="margin-top:8px;">
-          <?php if($favs): while($f = $favs->fetch_assoc()): ?>
-            <li>❤️ <b><?= htmlspecialchars($f['username']) ?></b> yêu thích <i><?= htmlspecialchars($f['title']) ?></i> <small style="color:rgba(255,255,255,0.55)">(<?= $f['created_at'] ?>)</small></li>
-          <?php endwhile; else: ?>
-            <li>Không có dữ liệu</li>
-          <?php endif; ?>
-        </ul>
-      </div>
-    </div>
-  </div>
-
 </div>
 
-<!-- SCRIPTS: Chart interactions + micro-interactions -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-(function(){
-  // Wait until Chart is loaded
-  if (typeof Chart === 'undefined') return;
+// Update time
+function updateTime() {
+    const now = new Date();
+    document.getElementById('currentTime').textContent = 
+        now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+}
+updateTime();
+setInterval(updateTime, 1000);
 
-  // Data injected from PHP
-  const categories = <?php echo json_encode(array_values($categories)); ?> || [];
-  const counts = <?php echo json_encode(array_values($counts)); ?> || [];
-  const roles = <?php echo json_encode(array_values($roles)); ?> || [];
-  const roleCounts = <?php echo json_encode(array_values($role_counts)); ?> || [];
+// Category Chart
+const categoryData = <?= json_encode(array_column($categories_data, 'name')) ?>;
+const categoryCounts = <?= json_encode(array_map('intval', array_column($categories_data, 'cnt'))) ?>;
 
-  // small helper gradient generator
-  function makeGradient(ctx, color) {
-    const g = ctx.createLinearGradient(0,0,0,300);
-    g.addColorStop(0, color + 'CC');
-    g.addColorStop(1, color + '22');
-    return g;
-  }
-
-  // Bar chart: categories
-  const catEl = document.getElementById('chartCategories');
-  if (catEl) {
-    const ctx = catEl.getContext('2d');
-    const catChart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: categories,
-        datasets: [{
-          label: 'Số bài viết',
-          data: counts,
-          backgroundColor: function(context){
-            const palette = ['#00e6ff','#b36bff','#00ffa3','#ff7ad1'];
-            const color = palette[context.dataIndex % palette.length] || '#00e6ff';
-            return makeGradient(context.chart.ctx, color);
-          },
-          borderColor: '#071216',
-          borderWidth: 1.2,
-          hoverBorderColor: '#ffffff'
-        }]
-      },
-      options: {
-        maintainAspectRatio: false,
-        scales: {
-          x: { ticks:{ color:'#dff7ff' }, grid:{ color:'rgba(255,255,255,0.02)' } },
-          y: { ticks:{ color:'#dff7ff' }, beginAtZero:true, grid:{ color:'rgba(255,255,255,0.02)' } }
+if (document.getElementById('categoryChart')) {
+    new Chart(document.getElementById('categoryChart'), {
+        type: 'doughnut',
+        data: {
+            labels: categoryData,
+            datasets: [{
+                data: categoryCounts,
+                backgroundColor: [
+                    'rgba(0, 212, 255, 0.8)',
+                    'rgba(168, 85, 247, 0.8)',
+                    'rgba(0, 255, 136, 0.8)',
+                    'rgba(255, 71, 107, 0.8)',
+                    'rgba(255, 149, 0, 0.8)',
+                    'rgba(59, 130, 246, 0.8)'
+                ],
+                borderWidth: 0,
+                hoverOffset: 10
+            }]
         },
-        plugins: {
-          legend: { display:false },
-          tooltip: {
-            enabled:true,
-            backgroundColor: 'rgba(7,19,26,0.95)',
-            titleColor: '#bffcff',
-            bodyColor: '#eafcff',
-            usePointStyle:true,
-            callbacks: {
-              label: function(ctx) {
-                return ' ' + ctx.dataset.label + ': ' + ctx.formattedValue;
-              }
-            }
-          }
-        },
-        interaction: { mode:'nearest', axis:'x', intersect:true },
-        animation: { duration: 700, easing: 'easeOutCubic' },
-        onHover: (evt, elements) => {
-          evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: '#8b949e',
+                        padding: 15,
+                        font: { size: 12 }
+                    }
+                }
+            },
+            cutout: '65%'
         }
-      }
     });
-
-    // micro-interaction: animated label showing value when hovering bar
-    catEl.addEventListener('mousemove', (e) => {
-      const points = catChart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
-      const badge = document.getElementById('badge-cat');
-      if (points.length) {
-        const idx = points[0].index;
-        badge.textContent = (categories[idx] ? categories[idx] : 'Item') + ': ' + (counts[idx] ?? 0);
-        badge.style.transform = 'translateY(0) scale(1)';
-        badge.style.opacity = '1';
-      } else {
-        badge.textContent = 'Top';
-        badge.style.transform = 'translateY(-6px) scale(.98)';
-        badge.style.opacity = '0.95';
-      }
-    });
-  }
-
-  // Doughnut chart: roles
-  const roleEl = document.getElementById('chartRoles');
-  if (roleEl) {
-    const ctxR = roleEl.getContext('2d');
-    const roleChart = new Chart(ctxR, {
-      type: 'doughnut',
-      data: {
-        labels: roles,
-        datasets: [{
-          data: roleCounts,
-          backgroundColor: ['#b36bff','#00ffa3','#ff7ad1','#00e6ff'],
-          borderColor: '#071216',
-          borderWidth: 2
-        }]
-      },
-      options: {
-        maintainAspectRatio: false,
-        cutout: '60%',
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: { color:'#dff7ff' }
-          },
-          tooltip: {
-            backgroundColor: 'rgba(7,19,26,0.95)',
-            titleColor: '#bffcff',
-            bodyColor: '#eafcff'
-          }
-        },
-        animation: { animateRotate:true, duration:1000, easing:'easeOutElastic' },
-        onHover: (evt, elements) => {
-          evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
-          const badge = document.getElementById('badge-role');
-          if (elements.length) {
-            const idx = elements[0].index;
-            badge.textContent = (roles[idx] ? roles[idx] : 'Role') + ': ' + (roleCounts[idx] ?? 0);
-            badge.style.transform = 'translateY(0) scale(1)';
-            badge.style.opacity = '1';
-          } else {
-            badge.textContent = 'Tỉ lệ';
-            badge.style.transform = 'translateY(-6px) scale(.98)';
-            badge.style.opacity = '0.95';
-          }
-        }
-      }
-    });
-  }
-
-  // Animated entrance for stat squares
-  document.querySelectorAll('.stat-square').forEach((el, i) => {
-    el.style.opacity = 0;
-    el.style.transform = 'translateY(12px)';
-    setTimeout(() => {
-      el.style.transition = 'transform .5s cubic-bezier(.2,.9,.2,1), opacity .5s ease';
-      el.style.transform = 'translateY(0)';
-      el.style.opacity = 1;
-    }, 120 + i * 80);
-  });
-
-  // Smooth scroll for quick actions anchors
-  document.querySelectorAll('.neon-action').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const href = btn.getAttribute('href');
-      if (!href || !href.startsWith('#')) return;
-      e.preventDefault();
-      const t = document.querySelector(href);
-      if (t) window.scrollTo({ top: t.offsetTop - 80, behavior: 'smooth' });
-    });
-  });
-
-})();
+}
 </script>

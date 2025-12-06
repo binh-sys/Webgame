@@ -1,235 +1,360 @@
 <?php
 require_once('ketnoi.php');
 
-// Lấy dữ liệu từ bảng users
-$sql = "SELECT * FROM users";
+$sql = "SELECT * FROM users ORDER BY created_at DESC";
 $query = mysqli_query($ketnoi, $sql);
+$total = mysqli_num_rows($query);
+
+// Đếm theo vai trò
+$admin_count = mysqli_fetch_assoc(mysqli_query($ketnoi, "SELECT COUNT(*) as c FROM users WHERE role='admin'"))['c'];
+$editor_count = mysqli_fetch_assoc(mysqli_query($ketnoi, "SELECT COUNT(*) as c FROM users WHERE role='editor'"))['c'];
+$user_count = mysqli_fetch_assoc(mysqli_query($ketnoi, "SELECT COUNT(*) as c FROM users WHERE role='user'"))['c'];
 ?>
 
-<div class="content-wrapper">
-  <div class="container-xxl flex-grow-1 container-p-y">
+<link rel="stylesheet" href="assets/css/admin-forms.css">
 
-    <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h4 class="fw-bold mb-0 text-neon"><i class="bx bx-group me-2"></i> Quản lý người dùng</h4>
-      <a href="?page_layout=themus" class="btn btn-sky-neon">
-        <i class="bx bx-plus me-1"></i> Thêm người dùng
-      </a>
-    </div>
-
-    <!-- Card -->
-    <div class="card bg-dark border-0 shadow-lg neon-card">
-      <div class="card-header border-bottom border-secondary">
-        <h5 class="text-light mb-0"><i class="bx bx-list-ul me-2"></i>Danh sách người dùng</h5>
-      </div>
-
-      <div class="table-responsive">
-        <table class="table table-dark table-hover align-middle mb-0 neon-table">
-          <thead class="text-uppercase text-neon-sm">
-            <tr>
-              <th>STT</th>
-              <th>Tên đăng nhập</th>
-              <th>Tên hiển thị</th>
-              <th>Email</th>
-              <th>Vai trò</th>
-              <th class="text-center">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php 
-            $i = 1;
-            while ($row = mysqli_fetch_assoc($query)) { ?>
-              <tr>
-                <td><?php echo $i++; ?></td>
-                <td class="fw-semibold text-white"><?php echo htmlspecialchars($row['username']); ?></td>
-                <td><?php echo htmlspecialchars($row['display_name']); ?></td>
-                <td class="text-info"><?php echo htmlspecialchars($row['email']); ?></td>
-                <td>
-                  <?php 
-                    switch ($row['role']) {
-                      case 'admin':
-                        echo '<span class="badge bg-danger text-uppercase neon-badge"><i class="bx bx-shield-quarter me-1"></i>Admin</span>';
-                        break;
-                      case 'editor':
-                        echo '<span class="badge bg-warning text-dark text-uppercase neon-badge"><i class="bx bx-pencil me-1"></i>Biên tập</span>';
-                        break;
-                      default:
-                        echo '<span class="badge bg-info text-dark text-uppercase neon-badge"><i class="bx bx-user me-1"></i>Người dùng</span>';
-                    }
-                  ?>
-                </td>
-                <td class="text-center">
-                  <div class="d-flex justify-content-center gap-2">
-                    <a href="?page_layout=suaus&id=<?php echo $row['user_id']; ?>" 
-                       class="btn btn-warning-neon">
-                      <i class="bx bx-edit-alt me-1"></i> Sửa
-                    </a>
-                    <button 
-                       class="btn btn-danger-neon btn-delete"
-                       data-id="<?php echo $row['user_id']; ?>">
-                      <i class="bx bx-trash me-1"></i> Xóa
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            <?php } ?>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- SweetAlert2 -->
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-  const deleteButtons = document.querySelectorAll(".btn-delete");
-  deleteButtons.forEach((btn) => {
-    btn.addEventListener("click", function () {
-      const id = this.getAttribute("data-id");
-      Swal.fire({
-        title: "Xác nhận xóa?",
-        text: "Bạn có chắc chắn muốn xóa người dùng này không?",
-        icon: "warning",
-        showCancelButton: true,
-        confirmButtonColor: "#e53935",
-        cancelButtonColor: "#00e5ff",
-        confirmButtonText: "Xóa",
-        cancelButtonText: "Hủy",
-        background: "#111",
-        color: "#fff",
-        backdrop: `rgba(0,0,0,0.7)`,
-      }).then((result) => {
-        if (result.isConfirmed) {
-          window.location.href = "?page_layout=xoaus&id=" + id;
-        }
-      });
-    });
-  });
-});
-</script>
 <style>
-/* ===== NEON PHONG CÁCH CHÍNH ===== */
-.text-neon {
-  color: #00e5ff;
-  text-shadow: 0 0 10px #00e5ff;
+/* Stats Cards */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
-.text-neon-sm {
-  color: #6ee2ff;
-  letter-spacing: 0.5px;
+.stat-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: var(--transition-normal);
 }
 
-/* ===== BUTTON THÊM ===== */
-.btn-sky-neon {
-  background: linear-gradient(90deg, #00bcd4, #1de9b6);
-  color: #fff;
-  border: none;
-  border-radius: 30px;
-  font-weight: 600;
-  box-shadow: 0 0 15px #00e5ff;
-  transition: 0.3s;
-}
-.btn-sky-neon:hover {
-  box-shadow: 0 0 25px #00e5ff, 0 0 10px #1de9b6;
-  transform: translateY(-2px);
+.stat-card:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
 }
 
-/* ===== KHUNG CARD ===== */
-.neon-card {
-  background: linear-gradient(145deg, #0b0c10, #111827);
-  border-radius: 15px;
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
 }
 
-/* ===== NÚT SỬA / XÓA ===== */
-.btn-warning-neon,
-.btn-danger-neon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-weight: 600;
-  border-radius: 25px;
-  padding: 6px 14px;
-  font-size: 14px;
-  transition: all 0.3s ease;
-  min-width: 80px;
-  text-align: center;
+.stat-icon.blue { background: rgba(0, 212, 255, 0.15); color: var(--primary); }
+.stat-icon.red { background: rgba(255, 71, 87, 0.15); color: var(--accent-red); }
+.stat-icon.orange { background: rgba(255, 149, 0, 0.15); color: var(--accent-orange); }
+.stat-icon.green { background: rgba(0, 255, 136, 0.15); color: var(--accent-green); }
+
+.stat-info h3 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
 }
 
-/* Vàng */
-.btn-warning-neon {
-  background: #fbc02d;
-  color: #000;
-  box-shadow: 0 0 10px #fdd835;
-  border: none;
-}
-.btn-warning-neon:hover {
-  background: #ffeb3b;
-  box-shadow: 0 0 20px #ffeb3b;
+.stat-info p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 4px 0 0;
 }
 
-/* Đỏ */
-.btn-danger-neon {
-  background: #e53935;
-  color: #fff;
-  box-shadow: 0 0 10px #ef5350;
-  border: none;
-}
-.btn-danger-neon:hover {
-  background: #ff1744;
-  box-shadow: 0 0 20px #ff1744;
+/* Table Card */
+.table-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
 }
 
-/* ===== BẢNG ===== */
-.table-dark {
-  color: #e0e0e0;
-  background-color: #121212;
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed; /* Giúp các cột thẳng hàng */
+.table-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
 }
 
-.neon-table th, .neon-table td {
-  vertical-align: middle;
-  border-color: rgba(255, 255, 255, 0.05);
-  text-align: center;
-  white-space: nowrap;
+.table-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--primary);
+    font-size: 16px;
+    font-weight: 600;
 }
 
-.neon-table th {
-  color: #00e5ff;
-  font-weight: 700;
-  text-shadow: 0 0 5px #00e5ff;
-  letter-spacing: 0.5px;
+.table-title i {
+    font-size: 20px;
 }
 
-/* Căn đều cột */
-.neon-table th:nth-child(1), .neon-table td:nth-child(1) { width: 5%; }
-.neon-table th:nth-child(2), .neon-table td:nth-child(2) { width: 15%; }
-.neon-table th:nth-child(3), .neon-table td:nth-child(3) { width: 20%; }
-.neon-table th:nth-child(4), .neon-table td:nth-child(4) { width: 25%; }
-.neon-table th:nth-child(5), .neon-table td:nth-child(5) { width: 15%; }
-.neon-table th:nth-child(6), .neon-table td:nth-child(6) { width: 20%; }
-
-.table-dark tbody tr:hover {
-  background-color: rgba(0, 229, 255, 0.05);
-  box-shadow: inset 0 0 10px #00e5ff;
-  transition: 0.3s;
+/* Data Table */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
 }
 
-/* Badge */
-.neon-badge {
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
-  font-size: 0.8rem;
+.data-table th {
+    background: rgba(0, 212, 255, 0.05);
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 14px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
 }
 
-/* Giữ 2 nút ở giữa và thẳng hàng */
-td .d-flex {
-  justify-content: center !important;
-  align-items: center;
-  gap: 10px;
+.data-table td {
+    padding: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    color: var(--text-primary);
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.data-table tbody tr {
+    transition: var(--transition-fast);
+}
+
+.data-table tbody tr:hover {
+    background: rgba(0, 212, 255, 0.03);
+}
+
+/* User Cell */
+.user-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.user-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--accent-purple));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 16px;
+    text-transform: uppercase;
+}
+
+.user-info h4 {
+    margin: 0 0 2px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.user-info span {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* Role Badge */
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.role-badge.admin {
+    background: rgba(255, 71, 87, 0.15);
+    color: var(--accent-red);
+    border: 1px solid rgba(255, 71, 87, 0.3);
+}
+
+.role-badge.editor {
+    background: rgba(255, 149, 0, 0.15);
+    color: var(--accent-orange);
+    border: 1px solid rgba(255, 149, 0, 0.3);
+}
+
+.role-badge.user {
+    background: rgba(0, 212, 255, 0.15);
+    color: var(--primary);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+}
+
+/* Action Buttons */
+.action-btns {
+    display: flex;
+    gap: 8px;
+}
+
+.action-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    text-decoration: none;
+}
+
+.action-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(0, 212, 255, 0.1);
+}
+
+.action-btn.edit:hover {
+    border-color: var(--accent-yellow);
+    color: var(--accent-yellow);
+    background: rgba(255, 213, 0, 0.1);
+}
+
+.action-btn.delete:hover {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+    background: rgba(255, 71, 87, 0.1);
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
 }
 </style>
+
+<div class="admin-form-container">
+    <!-- Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon blue"><i class='bx bx-group'></i></div>
+            <div class="stat-info">
+                <h3><?= $total ?></h3>
+                <p>Tổng người dùng</p>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon red"><i class='bx bx-shield'></i></div>
+            <div class="stat-info">
+                <h3><?= $admin_count ?></h3>
+                <p>Quản trị viên</p>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon orange"><i class='bx bx-edit'></i></div>
+            <div class="stat-info">
+                <h3><?= $editor_count ?></h3>
+                <p>Biên tập viên</p>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon green"><i class='bx bx-user'></i></div>
+            <div class="stat-info">
+                <h3><?= $user_count ?></h3>
+                <p>Người dùng</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-card">
+        <div class="table-header">
+            <div class="table-title">
+                <i class='bx bx-list-ul'></i>
+                <span>Danh sách người dùng</span>
+            </div>
+            <a href="?page_layout=themus" class="btn btn-success">
+                <i class='bx bx-plus'></i> Thêm người dùng
+            </a>
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:60px">#</th>
+                        <th>Người dùng</th>
+                        <th>Email</th>
+                        <th>Vai trò</th>
+                        <th>Ngày tạo</th>
+                        <th style="width:120px">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ($total > 0): ?>
+                        <?php $i = 1; while ($row = mysqli_fetch_assoc($query)): ?>
+                        <tr>
+                            <td><strong><?= $i++ ?></strong></td>
+                            <td>
+                                <div class="user-cell">
+                                    <div class="user-avatar"><?= strtoupper(substr($row['username'], 0, 1)) ?></div>
+                                    <div class="user-info">
+                                        <h4><?= htmlspecialchars($row['display_name'] ?: $row['username']) ?></h4>
+                                        <span>@<?= htmlspecialchars($row['username']) ?></span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td style="color:var(--primary)"><?= htmlspecialchars($row['email']) ?></td>
+                            <td>
+                                <?php 
+                                $role_icons = ['admin' => 'bx-shield', 'editor' => 'bx-edit', 'user' => 'bx-user'];
+                                $role_names = ['admin' => 'Quản trị', 'editor' => 'Biên tập', 'user' => 'Người dùng'];
+                                ?>
+                                <span class="role-badge <?= $row['role'] ?>">
+                                    <i class='bx <?= $role_icons[$row['role']] ?? 'bx-user' ?>'></i>
+                                    <?= $role_names[$row['role']] ?? $row['role'] ?>
+                                </span>
+                            </td>
+                            <td><?= date('d/m/Y', strtotime($row['created_at'])) ?></td>
+                            <td>
+                                <div class="action-btns">
+                                    <a href="?page_layout=suaus&id=<?= $row['user_id'] ?>" 
+                                       class="action-btn edit" title="Sửa">
+                                        <i class='bx bx-edit'></i>
+                                    </a>
+                                    <a href="?page_layout=xoaus&id=<?= $row['user_id'] ?>" 
+                                       class="action-btn delete" title="Xóa"
+                                       onclick="return confirm('Xóa người dùng này?');">
+                                        <i class='bx bx-trash'></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="6">
+                                <div class="empty-state">
+                                    <i class='bx bx-user'></i>
+                                    <p>Chưa có người dùng nào</p>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

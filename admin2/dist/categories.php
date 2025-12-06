@@ -1,139 +1,321 @@
 <?php
 require_once('ketnoi.php');
 
-$sql = "SELECT * FROM categories ORDER BY category_id DESC";
+$sql = "SELECT c.*, COUNT(a.article_id) as article_count 
+        FROM categories c 
+        LEFT JOIN articles a ON c.category_id = a.category_id 
+        GROUP BY c.category_id 
+        ORDER BY c.category_id DESC";
 $query = mysqli_query($ketnoi, $sql);
+$total = mysqli_num_rows($query);
 ?>
 
-<div class="content-wrapper">
-  <div class="container-xxl flex-grow-1 container-p-y">
-
-    <!-- Tiêu đề + Nút thêm -->
-    <div class="d-flex justify-content-between align-items-center mb-4" style="gap: 15px;">
-      <h4 class="fw-bold mb-0 d-flex align-items-center" style="gap: 8px;">
-        <i class='bx bx-folder text-primary'></i> 
-        <span>Quản lý chuyên mục</span>
-      </h4>
-
-      <!-- Nút thêm chuyên mục -->
-      <a href="?page_layout=themchuyenmuc" class="btn-add">+ Thêm chuyên mục</a>
-    </div>
-
-    <!-- Bảng danh sách -->
-    <div class="card shadow-sm">
-      <div class="card-header bg-light d-flex align-items-center justify-content-between">
-        <h5 class="mb-0 d-flex align-items-center" style="gap: 6px;">
-          <i class='bx bx-list-ul'></i> Danh sách chuyên mục
-        </h5>
-      </div>
-
-      <div class="card-body">
-        <div class="table-responsive">
-          <table class="table table-striped table-bordered align-middle text-nowrap category-table">
-            <thead class="table-light text-center align-middle">
-              <tr>
-                <th style="width: 6%;">STT</th>
-                <th style="width: 25%;">Tên chuyên mục</th>
-                <th style="width: 18%;">Slug</th>
-                <th style="width: 36%;">Mô tả</th>
-                <th style="width: 15%;">Hành động</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              <?php 
-              $i = 1;
-              while ($row = mysqli_fetch_assoc($query)) { ?>
-                <tr>
-                  <td class="text-center fw-bold"><?php echo $i++; ?></td>
-                  <td class="text-center"><?php echo htmlspecialchars($row['name']); ?></td>
-                  <td class="text-center"><?php echo htmlspecialchars($row['slug']); ?></td>
-                  <td style="text-align: left;"><?php echo htmlspecialchars($row['description']); ?></td>
-                  <td class="text-center">
-                    <div class="d-flex justify-content-center gap-2">
-                      <a href="?page_layout=suachuyenmuc&id=<?php echo $row['category_id']; ?>" class="btn-edit">✏️ Sửa</a>
-                      <a href="?page_layout=xoachuyenmuc&id=<?php echo $row['category_id']; ?>" 
-                         onclick="return confirm('Bạn có chắc chắn muốn xóa chuyên mục này không?');"
-                         class="btn-delete">🗑️ Xóa</a>
-                    </div>
-                  </td>
-                </tr>
-              <?php } ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+<link rel="stylesheet" href="assets/css/admin-forms.css">
 
 <style>
-/* Bảng chuyên mục căn đều và đẹp hơn */
-.category-table {
-  table-layout: fixed;
-  width: 100%;
-  border-collapse: collapse;
-}
-.category-table th, 
-.category-table td {
-  vertical-align: middle;
-  padding: 10px 8px;
-  word-wrap: break-word;
-}
-.category-table th {
-  background: #0d1b2a;
-  color: #00eaff;
-  text-shadow: 0 0 5px #00eaff;
-  border-bottom: 2px solid #00eaff70;
+/* Stats Cards */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
-/* Nút thêm chuyên mục */
-.btn-add {
-  background: linear-gradient(90deg, #00e0ff, #0077ff);
-  color: #fff;
-  font-weight: 600;
-  padding: 8px 18px;
-  border-radius: 30px;
-  text-decoration: none;
-  box-shadow: 0 0 10px #00e0ff80;
-  transition: 0.3s;
-}
-.btn-add:hover {
-  box-shadow: 0 0 20px #00e0ff;
-  transform: translateY(-2px);
-  color: #fff;
+.stat-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: var(--transition-normal);
 }
 
-/* Nút hành động Sửa/Xóa */
-.btn-edit, .btn-delete {
-  display: inline-block;
-  padding: 5px 12px;
-  border-radius: 8px;
-  font-weight: 500;
-  color: #fff;
-  transition: 0.3s;
-  min-width: 60px;
-  text-align: center;
-}
-.btn-edit {
-  background: #ffc107;
-  box-shadow: 0 0 8px #ffc10770;
-}
-.btn-edit:hover {
-  background: #ffcf40;
-  box-shadow: 0 0 15px #ffc107;
-}
-.btn-delete {
-  background: #ff4d4d;
-  box-shadow: 0 0 8px #ff4d4d70;
-}
-.btn-delete:hover {
-  background: #ff1a1a;
-  box-shadow: 0 0 15px #ff4d4d;
+.stat-card:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
 }
 
-/* Căn chỉnh tiêu đề và nút */
-.d-flex.justify-content-between.align-items-center {
-  align-items: center !important;
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    background: rgba(168, 85, 247, 0.15);
+    color: var(--accent-purple);
+}
+
+.stat-info h3 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.stat-info p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 4px 0 0;
+}
+
+/* Table Card */
+.table-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+}
+
+.table-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.table-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--primary);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.table-title i {
+    font-size: 20px;
+}
+
+/* Data Table */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th {
+    background: rgba(0, 212, 255, 0.05);
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 14px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-table td {
+    padding: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    color: var(--text-primary);
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.data-table tbody tr {
+    transition: var(--transition-fast);
+}
+
+.data-table tbody tr:hover {
+    background: rgba(0, 212, 255, 0.03);
+}
+
+/* Category Name */
+.category-name {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.category-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(0, 212, 255, 0.1));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-purple);
+    font-size: 18px;
+}
+
+.category-info h4 {
+    margin: 0 0 2px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.category-info span {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* Article Count Badge */
+.count-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    background: rgba(0, 212, 255, 0.1);
+    color: var(--primary);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+/* Action Buttons */
+.action-btns {
+    display: flex;
+    gap: 8px;
+}
+
+.action-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    text-decoration: none;
+}
+
+.action-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(0, 212, 255, 0.1);
+}
+
+.action-btn.edit:hover {
+    border-color: var(--accent-yellow);
+    color: var(--accent-yellow);
+    background: rgba(255, 213, 0, 0.1);
+}
+
+.action-btn.delete:hover {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+    background: rgba(255, 71, 87, 0.1);
+}
+
+/* Description */
+.description-cell {
+    max-width: 300px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-secondary);
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
 }
 </style>
+
+<div class="admin-form-container">
+    <!-- Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon"><i class='bx bx-folder'></i></div>
+            <div class="stat-info">
+                <h3><?= $total ?></h3>
+                <p>Tổng chuyên mục</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-card">
+        <div class="table-header">
+            <div class="table-title">
+                <i class='bx bx-list-ul'></i>
+                <span>Danh sách chuyên mục</span>
+            </div>
+            <a href="?page_layout=themchuyenmuc" class="btn btn-success">
+                <i class='bx bx-plus'></i> Thêm chuyên mục
+            </a>
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:60px">#</th>
+                        <th>Chuyên mục</th>
+                        <th>Slug</th>
+                        <th>Mô tả</th>
+                        <th>Số bài viết</th>
+                        <th style="width:120px">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ($total > 0): ?>
+                        <?php $i = 1; while ($row = mysqli_fetch_assoc($query)): ?>
+                        <tr>
+                            <td><strong><?= $i++ ?></strong></td>
+                            <td>
+                                <div class="category-name">
+                                    <div class="category-icon"><i class='bx bx-folder'></i></div>
+                                    <div class="category-info">
+                                        <h4><?= htmlspecialchars($row['name']) ?></h4>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><code style="color:var(--primary);background:rgba(0,212,255,0.1);padding:4px 8px;border-radius:4px;"><?= htmlspecialchars($row['slug']) ?></code></td>
+                            <td class="description-cell"><?= htmlspecialchars($row['description']) ?: '<em style="color:var(--text-muted)">Chưa có mô tả</em>' ?></td>
+                            <td>
+                                <span class="count-badge">
+                                    <i class='bx bx-news'></i> <?= $row['article_count'] ?>
+                                </span>
+                            </td>
+                            <td>
+                                <div class="action-btns">
+                                    <a href="?page_layout=suachuyenmuc&id=<?= $row['category_id'] ?>" 
+                                       class="action-btn edit" title="Sửa">
+                                        <i class='bx bx-edit'></i>
+                                    </a>
+                                    <a href="?page_layout=xoachuyenmuc&id=<?= $row['category_id'] ?>" 
+                                       class="action-btn delete" title="Xóa"
+                                       onclick="return confirm('Xóa chuyên mục này? Các bài viết thuộc chuyên mục sẽ không bị xóa.');">
+                                        <i class='bx bx-trash'></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="6">
+                                <div class="empty-state">
+                                    <i class='bx bx-folder'></i>
+                                    <p>Chưa có chuyên mục nào</p>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

@@ -1,163 +1,274 @@
 <?php
 require_once('ketnoi.php');
 
-// Lấy dữ liệu từ bảng tags
-$sql = "SELECT * FROM tags";
+$sql = "SELECT t.*, COUNT(at.article_id) as article_count 
+        FROM tags t 
+        LEFT JOIN article_tags at ON t.tag_id = at.tag_id 
+        GROUP BY t.tag_id 
+        ORDER BY t.tag_id DESC";
 $query = mysqli_query($ketnoi, $sql);
+$total = mysqli_num_rows($query);
 ?>
 
+<link rel="stylesheet" href="assets/css/admin-forms.css">
+
 <style>
-/* 🌌 Giao diện tổng thể */
-.card {
-  background: rgba(10, 10, 20, 0.9);
-  border-radius: 15px;
-  box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
-  color: #fff;
-  border: 1px solid rgba(0, 255, 255, 0.1);
-  padding-bottom: 10px;
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
-/* 💠 Header bảng */
-.card-header {
-  background: transparent;
-  border-bottom: 1px solid rgba(0, 255, 255, 0.25);
-  color: #00eaff;
-  font-weight: bold;
-  font-size: 1.05rem;
-  text-shadow: 0 0 8px #00eaff;
-  padding: 12px 20px;
+.stat-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: var(--transition-normal);
 }
 
-/* ✨ Nút thêm thẻ */
-.btn-add {
-  color: #00f6ff;
-  border: 1px solid #00f6ff;
-  border-radius: 25px;
-  padding: 6px 18px;
-  font-weight: 600;
-  text-decoration: none;
-  font-size: 0.95rem;
-  box-shadow: 0 0 8px #00f6ff;
-  transition: all 0.3s ease;
-}
-.btn-add:hover {
-  background: #00f6ff;
-  color: #000;
-  box-shadow: 0 0 20px #00f6ff, 0 0 40px #00f6ff;
+.stat-card:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
 }
 
-/* 🟡 Nút sửa */
-.btn-edit {
-  background: #ffcc00;
-  border: none;
-  border-radius: 20px;
-  padding: 4px 12px;
-  color: #000;
-  font-weight: 600;
-  font-size: 0.9rem;
-  box-shadow: 0 0 10px rgba(255, 204, 0, 0.7);
-  transition: 0.3s ease;
-}
-.btn-edit:hover {
-  background: #ffe45c;
-  transform: scale(1.05);
-  box-shadow: 0 0 20px rgba(255, 230, 90, 1);
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    background: rgba(0, 255, 136, 0.15);
+    color: var(--accent-green);
 }
 
-/* 🔴 Nút xóa */
-.btn-delete {
-  background: #ff4444;
-  border: none;
-  border-radius: 20px;
-  padding: 4px 12px;
-  color: #fff;
-  font-weight: 600;
-  font-size: 0.9rem;
-  box-shadow: 0 0 10px rgba(255, 0, 0, 0.6);
-  transition: 0.3s ease;
-}
-.btn-delete:hover {
-  background: #ff6666;
-  transform: scale(1.05);
-  box-shadow: 0 0 20px rgba(255, 80, 80, 1);
+.stat-info h3 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
 }
 
-/* 📋 Bảng dữ liệu */
-.table {
-  color: #fff;
-  margin-bottom: 0;
+.stat-info p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 4px 0 0;
 }
-.table th {
-  color: #00f6ff;
-  text-shadow: 0 0 6px #00f6ff;
-  font-weight: 600;
-  font-size: 0.95rem;
-  border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+
+.table-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
 }
-.table td {
-  vertical-align: middle;
-  padding: 10px;
-  font-size: 0.92rem;
+
+.table-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
 }
-.table tbody tr:hover {
-  background: rgba(0, 255, 255, 0.08);
-  transition: 0.3s;
+
+.table-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--primary);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th {
+    background: rgba(0, 212, 255, 0.05);
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 14px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-table td {
+    padding: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    color: var(--text-primary);
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.data-table tbody tr {
+    transition: var(--transition-fast);
+}
+
+.data-table tbody tr:hover {
+    background: rgba(0, 212, 255, 0.03);
+}
+
+.tag-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: linear-gradient(135deg, rgba(0, 255, 136, 0.15), rgba(0, 212, 255, 0.1));
+    border: 1px solid rgba(0, 255, 136, 0.3);
+    border-radius: 20px;
+    color: var(--accent-green);
+    font-weight: 600;
+}
+
+.tag-badge i {
+    font-size: 16px;
+}
+
+.count-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    background: rgba(0, 212, 255, 0.1);
+    color: var(--primary);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.action-btns {
+    display: flex;
+    gap: 8px;
+}
+
+.action-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    text-decoration: none;
+}
+
+.action-btn.edit:hover {
+    border-color: var(--accent-yellow);
+    color: var(--accent-yellow);
+    background: rgba(255, 213, 0, 0.1);
+}
+
+.action-btn.delete:hover {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+    background: rgba(255, 71, 87, 0.1);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
 }
 </style>
 
-<!-- Content wrapper -->
-<div class="content-wrapper">
-  <div class="container-xxl flex-grow-1 container-p-y">
-
-    <!-- Tiêu đề -->
-    <h4 class="fw-bold py-3 mb-4" style="color:#00eaff; text-shadow:0 0 8px #00eaff;">
-      🎮 Quản lý thẻ game
-    </h4>
-
-    <!-- Card danh sách -->
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <span>📘 Danh sách thẻ game</span>
-        <a href="?page_layout=themthegame" class="btn-add">+ Thêm thẻ game</a>
-      </div>
-
-      <div class="table-responsive text-nowrap px-2">
-        <table class="table align-middle text-center">
-          <thead>
-            <tr>
-              <th style="width:5%">STT</th>
-              <th style="width:20%">Tên thẻ</th>
-              <th style="width:20%">Slug</th>
-              <th style="width:35%">Mô tả</th>
-              <th style="width:20%">Hành động</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            <?php 
-            $i = 1;
-            while ($row = mysqli_fetch_assoc($query)) { ?>
-              <tr>
-                <td><strong><?php echo $i++; ?></strong></td>
-                <td><?php echo htmlspecialchars($row['name']); ?></td>
-                <td><?php echo htmlspecialchars($row['slug']); ?></td>
-                <td><?php echo htmlspecialchars($row['description']); ?></td>
-                <td>
-                  <div class="d-flex justify-content-center gap-2">
-                    <a href="?page_layout=suathegame&id=<?php echo $row['tag_id']; ?>" class="btn-edit">
-                      ✏️ Sửa
-                    </a>
-                    <a href="?page_layout=xoathegame&id=<?php echo $row['tag_id']; ?>" class="btn-delete"
-                      onclick="return confirm('Bạn có chắc muốn xóa thẻ này không?');">
-                      🗑️ Xóa
-                    </a>
-                  </div>
-                </td>
-              </tr>
-            <?php } ?>
-          </tbody>
-        </table>
-      </div>
+<div class="admin-form-container">
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon"><i class='bx bx-purchase-tag'></i></div>
+            <div class="stat-info">
+                <h3><?= $total ?></h3>
+                <p>Tổng thẻ game</p>
+            </div>
+        </div>
     </div>
-  </div>
+
+    <div class="table-card">
+        <div class="table-header">
+            <div class="table-title">
+                <i class='bx bx-list-ul'></i>
+                <span>Danh sách thẻ game</span>
+            </div>
+            <a href="?page_layout=themthegame" class="btn btn-success">
+                <i class='bx bx-plus'></i> Thêm thẻ game
+            </a>
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:60px">#</th>
+                        <th>Tên thẻ</th>
+                        <th>Slug</th>
+                        <th>Số bài viết</th>
+                        <th style="width:120px">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ($total > 0): ?>
+                        <?php $i = 1; while ($row = mysqli_fetch_assoc($query)): ?>
+                        <tr>
+                            <td><strong><?= $i++ ?></strong></td>
+                            <td>
+                                <span class="tag-badge">
+                                    <i class='bx bx-hash'></i>
+                                    <?= htmlspecialchars($row['name']) ?>
+                                </span>
+                            </td>
+                            <td><code style="color:var(--primary);background:rgba(0,212,255,0.1);padding:4px 8px;border-radius:4px;"><?= htmlspecialchars($row['slug']) ?></code></td>
+                            <td>
+                                <span class="count-badge">
+                                    <i class='bx bx-news'></i> <?= $row['article_count'] ?>
+                                </span>
+                            </td>
+                            <td>
+                                <div class="action-btns">
+                                    <a href="?page_layout=suathegame&id=<?= $row['tag_id'] ?>" class="action-btn edit" title="Sửa">
+                                        <i class='bx bx-edit'></i>
+                                    </a>
+                                    <a href="?page_layout=xoathegame&id=<?= $row['tag_id'] ?>" class="action-btn delete" title="Xóa"
+                                       onclick="return confirm('Xóa thẻ game này?');">
+                                        <i class='bx bx-trash'></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="5">
+                                <div class="empty-state">
+                                    <i class='bx bx-purchase-tag'></i>
+                                    <p>Chưa có thẻ game nào</p>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>

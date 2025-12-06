@@ -1,14 +1,16 @@
 <?php
-// add_article_pro.php - Thiết kế lại toàn bộ giao diện + nâng cấp bảo mật cơ bản
+// them_baiviet.php - Giao diện thêm bài viết chuyên nghiệp
 require_once('ketnoi.php');
 
-// Lấy danh mục và tác giả để hiển thị trong select
+// Lấy danh mục và tác giả
 $categories = mysqli_query($ketnoi, "SELECT * FROM categories ORDER BY name ASC");
-$authors = mysqli_query($ketnoi, "SELECT * FROM authors ORDER BY name ASC");
+$authors = mysqli_query($ketnoi, "SELECT user_id, display_name FROM users WHERE role IN ('editor', 'admin') ORDER BY display_name ASC");
+
+$errors = [];
+$success = false;
 
 // Xử lý khi form được submit
 if (isset($_POST['add_article'])) {
-    // Sử dụng prepared statements để an toàn hơn
     $title = trim($_POST['title'] ?? '');
     $slug = trim($_POST['slug'] ?? '');
     $excerpt = trim($_POST['excerpt'] ?? '');
@@ -19,54 +21,46 @@ if (isset($_POST['add_article'])) {
     $views = 0;
     $created_at = date('Y-m-d H:i:s');
 
-    // Kiểm tra sơ bộ
-    $errors = [];
     if ($title === '') $errors[] = 'Tiêu đề không được để trống.';
     if ($slug === '') $errors[] = 'Slug không được để trống.';
     if ($category_id <= 0) $errors[] = 'Vui lòng chọn danh mục.';
     if ($author_id <= 0) $errors[] = 'Vui lòng chọn tác giả.';
 
-   // Xử lý ảnh đại diện (giữ nguyên tên file, không đổi)
-$featured_image = '';
-if (!empty($_FILES['featured_image']['name'])) {
-    $upload_dir = __DIR__ . '/../uploads/articles/';
-    if (!file_exists($upload_dir)) {
-        mkdir($upload_dir, 0777, true);
-    }
-
-    // Tên file gốc (lọc bỏ ký tự nguy hiểm)
-    $raw_name = basename($_FILES['featured_image']['name']);
-    $raw_name = preg_replace('/[^a-zA-Z0-9\.\-_]/', '', $raw_name);
-
-    $ext = strtolower(pathinfo($raw_name, PATHINFO_EXTENSION));
-    $allowed = ['jpg','jpeg','png','webp','gif'];
-
-    if (!in_array($ext, $allowed)) {
-        $errors[] = 'Định dạng ảnh không hợp lệ. Cho phép: jpg, jpeg, png, webp, gif.';
-    } else {
-        $file_name = $raw_name;
-        $target_path = $upload_dir . $file_name;
-
-        // Nếu bị trùng tên → thêm -copy, -copy2,...
-        $i = 1;
-        while (file_exists($target_path)) {
-            $file_name = pathinfo($raw_name, PATHINFO_FILENAME) . "-copy{$i}." . $ext;
-            $target_path = $upload_dir . $file_name;
-            $i++;
+    // Xử lý ảnh đại diện
+    $featured_image = '';
+    if (!empty($_FILES['featured_image']['name'])) {
+        $upload_dir = __DIR__ . '/../../game2/uploads/';
+        if (!file_exists($upload_dir)) {
+            mkdir($upload_dir, 0777, true);
         }
 
-        // Upload file
-        if (move_uploaded_file($_FILES['featured_image']['tmp_name'], $target_path)) {
-            $featured_image = $file_name; // Lưu tên gốc vào DB
+        $raw_name = basename($_FILES['featured_image']['name']);
+        $raw_name = preg_replace('/[^a-zA-Z0-9\.\-_]/', '', $raw_name);
+        $ext = strtolower(pathinfo($raw_name, PATHINFO_EXTENSION));
+        $allowed = ['jpg','jpeg','png','webp','gif'];
+
+        if (!in_array($ext, $allowed)) {
+            $errors[] = 'Định dạng ảnh không hợp lệ. Cho phép: jpg, jpeg, png, webp, gif.';
         } else {
-            $errors[] = 'Không thể upload ảnh. Vui lòng thử lại.';
+            $file_name = $raw_name;
+            $target_path = $upload_dir . $file_name;
+
+            $i = 1;
+            while (file_exists($target_path)) {
+                $file_name = pathinfo($raw_name, PATHINFO_FILENAME) . "-copy{$i}." . $ext;
+                $target_path = $upload_dir . $file_name;
+                $i++;
+            }
+
+            if (move_uploaded_file($_FILES['featured_image']['tmp_name'], $target_path)) {
+                $featured_image = $file_name;
+            } else {
+                $errors[] = 'Không thể upload ảnh. Vui lòng thử lại.';
+            }
         }
     }
-}
-
 
     if (empty($errors)) {
-        // Prepared statement
         $stmt = mysqli_prepare($ketnoi, "INSERT INTO articles (title, slug, excerpt, content, category_id, author_id, status, views, featured_image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         if ($stmt) {
             mysqli_stmt_bind_param($stmt, 'ssssiiisss', $title, $slug, $excerpt, $content, $category_id, $author_id, $status, $views, $featured_image, $created_at);
@@ -84,252 +78,297 @@ if (!empty($_FILES['featured_image']['name'])) {
 }
 ?>
 
-<!doctype html>
-<html lang="vi">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Thêm bài viết — Admin</title>
+<link rel="stylesheet" href="assets/css/admin-forms.css">
 
-  <!-- Boxicons -->
-  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
-  <!-- TinyMCE -->
-  <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
-
-  <style>
-  :root{
-    --bg:#0f1724; --card:#0b1220; --accent:#00e6d6; --muted:#98a0ad; --glass: rgba(255,255,255,0.04);
-    --light-bg:#f6f7fb; --text:#e6eef6;
-  }
-  html,body{height:100%;margin:0;font-family: "Segoe UI", Roboto, Arial, sans-serif;background:linear-gradient(180deg,#071021 0%, #091428 100%);color:var(--text)}
-
-  .container{max-width:1100px;margin:28px auto;padding:18px}
-  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:14px;box-shadow: 0 10px 30px rgba(2,6,23,.6);overflow:hidden}
-
-  .card-header{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;background:linear-gradient(90deg, rgba(0,230,214,0.12), rgba(0,180,168,0.08));border-bottom:1px solid rgba(255,255,255,0.03)}
-  .card-header h1{margin:0;font-size:18px;letter-spacing:.2px}
-  .breadcrumbs{font-size:13px;color:var(--muted)}
-
-  .card-body{padding:22px;display:grid;grid-template-columns:1fr 360px;gap:22px}
-
-  /* FORM */
-  form .group{margin-bottom:14px}
-  label{display:block;font-size:13px;color:var(--muted);margin-bottom:8px}
-  input[type="text"], select, textarea, .form-file{width:100%;background:transparent;border:1px solid rgba(255,255,255,0.06);padding:12px;border-radius:10px;color:var(--text);box-sizing:border-box}
-  input::placeholder, textarea::placeholder{color:rgba(255,255,255,0.35)}
-  textarea{min-height:220px}
-  .form-row{display:flex;gap:12px}
-  .form-row .col{flex:1}
-
-  /* Right column card */
-  .card-side{background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));padding:18px;border-radius:10px;border:1px solid rgba(255,255,255,0.02)}
-  .meta-item{margin-bottom:12px}
-  .meta-item .small{font-size:13px;color:var(--muted)}
-
-  /* Buttons */
-  .btn-row{display:flex;gap:12px;margin-top:8px}
-  .btn{padding:10px 14px;border-radius:10px;border:none;cursor:pointer;font-weight:700}
-  .btn-primary{background:linear-gradient(90deg,var(--accent),#00b39f);color:#001;box-shadow:0 8px 24px rgba(0,180,159,0.12)}
-  .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--text)}
-  .btn-cancel{background:#ff4d6d;color:#fff}
-
-  /* Thumbnail */
-  .thumb{width:100%;height:180px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.03)}
-  .muted{color:var(--muted)}
-
-  /* Floating save for mobile */
-  @media (max-width:980px){
-    .card-body{grid-template-columns:1fr;}
-  }
-
-  /* small helpers */
-  .error-list{background:rgba(255,64,64,0.06);padding:10px;border-radius:8px;margin-bottom:12px;color:#ffd6d6}
-  </style>
-</head>
-<body>
-
-<div class="container">
-  <div class="card">
-    <div class="card-header">
-      <div>
-        <h1>Thêm bài viết (PRO)</h1>
-        <div class="breadcrumbs">Trang chủ / Bài viết / Thêm mới</div>
-      </div>
-
-      <div style="display:flex;gap:10px;align-items:center">
-        <button class="btn btn-ghost" onclick="history.back()"><i class='bx bx-arrow-back'></i>&nbsp;Quay lại</button>
-        <button id="toggleDark" class="btn btn-ghost" title="Bật/Tắt giao diện tối"><i class='bx bx-moon'></i></button>
-      </div>
-    </div>
-
-    <div class="card-body">
-
-      <!-- MAIN FORM -->
-      <div>
-        <?php if (!empty($errors)) { ?>
-          <div class="error-list">
-            <strong>Lỗi:</strong>
-            <ul>
-              <?php foreach ($errors as $err) echo '<li>'.htmlspecialchars($err).'</li>'; ?>
-            </ul>
-          </div>
-        <?php } ?>
-
-        <form id="articleForm" method="POST" enctype="multipart/form-data" novalidate>
-          <input type="hidden" name="add_article" value="1">
-
-          <div class="group">
-            <label for="title">Tiêu đề</label>
-            <input id="title" name="title" type="text" placeholder="Ví dụ: Tin tức Esports hôm nay" value="<?= isset($title) ? htmlspecialchars($title) : '' ?>" required>
-          </div>
-
-          <div class="form-row">
-            <div class="col">
-              <div class="group">
-                <label for="slug">Slug (đường dẫn)</label>
-                <input id="slug" name="slug" type="text" placeholder="ví dụ: tin-tuc-game" value="<?= isset($slug) ? htmlspecialchars($slug) : '' ?>">
-              </div>
+<div class="admin-form-container">
+    <div class="admin-form-card">
+        <!-- Header -->
+        <div class="admin-form-header">
+            <div>
+                <h2><i class='bx bx-plus-circle'></i> Thêm bài viết mới</h2>
+                <div class="header-breadcrumb">
+                    <a href="index.php">Trang chủ</a> / <a href="?page_layout=danhsachbaiviet">Bài viết</a> / Thêm mới
+                </div>
             </div>
-            <div class="col">
-              <div class="group">
-                <label for="category_id">Danh mục</label>
-                <select id="category_id" name="category_id" required>
-                  <option value="">-- Chọn danh mục --</option>
-                  <?php mysqli_data_seek($categories, 0); while ($cat = mysqli_fetch_assoc($categories)) { ?>
-                    <option value="<?= $cat['category_id'] ?>" <?= (isset($category_id) && $category_id == $cat['category_id'])? 'selected':'' ?>><?= htmlspecialchars($cat['name']) ?></option>
-                  <?php } ?>
-                </select>
-              </div>
+            <div class="header-actions">
+                <a href="?page_layout=danhsachbaiviet" class="btn btn-ghost">
+                    <i class='bx bx-arrow-back'></i> Quay lại
+                </a>
             </div>
-          </div>
-
-          <div class="group">
-            <label for="excerpt">Tóm tắt</label>
-            <textarea id="excerpt" name="excerpt" rows="3" placeholder="Tóm tắt ngắn gọn..."><?= isset($excerpt) ? htmlspecialchars($excerpt) : '' ?></textarea>
-          </div>
-
-          <div class="group">
-            <label for="editor">Nội dung</label>
-            <textarea id="editor" name="content"><?= isset($content) ? htmlspecialchars($content) : '' ?></textarea>
-          </div>
-
-        </form>
-      </div>
-
-      <!-- RIGHT META / ACTIONS -->
-      <aside class="card-side">
-        <div class="meta-item">
-          <div class="small">Tác giả</div>
-          <select name="author_id" id="author_id" form="articleForm" required>
-            <option value="">-- Chọn tác giả --</option>
-            <?php mysqli_data_seek($authors, 0); while ($au = mysqli_fetch_assoc($authors)) { ?>
-              <option value="<?= $au['author_id'] ?>" <?= (isset($author_id) && $author_id == $au['author_id']) ? 'selected':'' ?>><?= htmlspecialchars($au['name']) ?></option>
-            <?php } ?>
-          </select>
         </div>
 
-        <div class="meta-item">
-          <div class="small">Trạng thái</div>
-          <select name="status" id="status" form="articleForm">
-            <option value="draft" <?= (isset($status) && $status=='draft')? 'selected':'' ?>>Nháp</option>
-            <option value="published" <?= (isset($status) && $status=='published')? 'selected':'' ?>>Xuất bản</option>
-          </select>
-        </div>
+        <!-- Body -->
+        <div class="admin-form-body">
+            <?php if (!empty($errors)): ?>
+            <div class="alert alert-error">
+                <i class='bx bx-error-circle'></i>
+                <div class="alert-content">
+                    <div class="alert-title">Có lỗi xảy ra!</div>
+                    <ul style="margin:0;padding-left:18px;">
+                        <?php foreach ($errors as $err): ?>
+                            <li><?= htmlspecialchars($err) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
+            <?php endif; ?>
 
-        <div class="meta-item">
-          <div class="small">Ảnh đại diện</div>
-          <input type="file" name="featured_image" id="featured_image" form="articleForm" accept="image/*" onchange="previewImage(event)">
-          <div style="height:10px"></div>
-          <img id="thumb" class="thumb" src="/mnt/data/5b0825ec-1d0a-4d14-85b8-a62519c32a9a.png" alt="Preview" />
-          <div class="muted" style="margin-top:8px;font-size:13px">Kích thước gợi ý: 1200x630, định dạng JPG/PNG/WebP</div>
-        </div>
+            <form id="articleForm" method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="add_article" value="1">
+                
+                <div class="form-grid">
+                    <!-- Main Content -->
+                    <div class="form-main">
+                        <!-- Thông tin cơ bản -->
+                        <div class="form-section">
+                            <div class="form-section-title">
+                                <i class='bx bx-edit'></i> Thông tin bài viết
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label required">Tiêu đề</label>
+                                <input type="text" name="title" id="title" class="form-input" 
+                                       placeholder="Nhập tiêu đề bài viết..." 
+                                       value="<?= isset($title) ? htmlspecialchars($title) : '' ?>" required>
+                                <div class="form-helper">
+                                    <i class='bx bx-info-circle'></i> Tiêu đề nên ngắn gọn, hấp dẫn (50-70 ký tự)
+                                </div>
+                            </div>
 
-        <div style="margin-top:18px" class="btn-row">
-          <button class="btn btn-primary" onclick="openConfirm(event)"><i class='bx bx-save'></i>&nbsp; Lưu</button>
-          <button class="btn btn-ghost" onclick="document.getElementById('articleForm').reset();resetThumb();">Đặt lại</button>
-          <button class="btn btn-ghost" onclick="history.back()"><i class='bx bx-arrow-back'></i>&nbsp; Hủy</button>
-        </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label required">Slug (URL)</label>
+                                    <input type="text" name="slug" id="slug" class="form-input" 
+                                           placeholder="vd: tin-tuc-game-moi" 
+                                           value="<?= isset($slug) ? htmlspecialchars($slug) : '' ?>" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label required">Danh mục</label>
+                                    <select name="category_id" id="category_id" class="form-select" required>
+                                        <option value="">-- Chọn danh mục --</option>
+                                        <?php mysqli_data_seek($categories, 0); while ($cat = mysqli_fetch_assoc($categories)): ?>
+                                            <option value="<?= $cat['category_id'] ?>" <?= (isset($category_id) && $category_id == $cat['category_id']) ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($cat['name']) ?>
+                                            </option>
+                                        <?php endwhile; ?>
+                                    </select>
+                                </div>
+                            </div>
 
-        <div style="margin-top:14px;font-size:13px;color:var(--muted)">
-          Lưu ý: Nội dung dài có thể ảnh hưởng tới hiển thị trang.
-        </div>
-      </aside>
+                            <div class="form-group">
+                                <label class="form-label">Tóm tắt</label>
+                                <textarea name="excerpt" id="excerpt" class="form-textarea" rows="3" 
+                                          placeholder="Mô tả ngắn gọn về nội dung bài viết..."><?= isset($excerpt) ? htmlspecialchars($excerpt) : '' ?></textarea>
+                                <div class="char-counter"><span id="excerptCount">0</span>/200 ký tự</div>
+                            </div>
+                        </div>
 
+                        <!-- Nội dung -->
+                        <div class="form-section">
+                            <div class="form-section-title">
+                                <i class='bx bx-text'></i> Nội dung bài viết
+                            </div>
+                            <div class="form-group">
+                                <textarea name="content" id="editor" class="form-textarea content-editor" 
+                                          placeholder="Nhập nội dung chi tiết..."><?= isset($content) ? htmlspecialchars($content) : '' ?></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sidebar -->
+                    <div class="form-sidebar">
+                        <!-- Xuất bản -->
+                        <div class="form-section">
+                            <div class="form-section-title">
+                                <i class='bx bx-send'></i> Xuất bản
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label required">Tác giả</label>
+                                <select name="author_id" id="author_id" class="form-select" required>
+                                    <option value="">-- Chọn tác giả --</option>
+                                    <?php mysqli_data_seek($authors, 0); while ($au = mysqli_fetch_assoc($authors)): ?>
+                                        <option value="<?= $au['user_id'] ?>" <?= (isset($author_id) && $author_id == $au['user_id']) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($au['display_name']) ?>
+                                        </option>
+                                    <?php endwhile; ?>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Trạng thái</label>
+                                <select name="status" id="status" class="form-select">
+                                    <option value="draft" <?= (isset($status) && $status == 'draft') ? 'selected' : '' ?>>📝 Bản nháp</option>
+                                    <option value="published" <?= (isset($status) && $status == 'published') ? 'selected' : '' ?>>✅ Xuất bản ngay</option>
+                                </select>
+                            </div>
+
+                            <div class="form-divider"></div>
+
+                            <div class="btn-group btn-group-vertical">
+                                <button type="button" class="btn btn-success btn-lg" onclick="confirmSubmit()">
+                                    <i class='bx bx-check'></i> Lưu bài viết
+                                </button>
+                                <button type="reset" class="btn btn-secondary" onclick="resetForm()">
+                                    <i class='bx bx-reset'></i> Đặt lại
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Ảnh đại diện -->
+                        <div class="form-section">
+                            <div class="form-section-title">
+                                <i class='bx bx-image'></i> Ảnh đại diện
+                            </div>
+
+                            <div class="file-upload-wrapper">
+                                <div class="file-upload-area" id="dropZone">
+                                    <i class='bx bx-cloud-upload'></i>
+                                    <div class="upload-text">Kéo thả hoặc click để chọn ảnh</div>
+                                    <div class="upload-hint">JPG, PNG, WebP, GIF (Tối đa 5MB)</div>
+                                    <input type="file" name="featured_image" id="featured_image" accept="image/*">
+                                </div>
+                            </div>
+
+                            <div class="image-preview" id="imagePreview">
+                                <div class="image-preview-placeholder">
+                                    <i class='bx bx-image-alt'></i>
+                                    <span>Chưa có ảnh</span>
+                                </div>
+                            </div>
+
+                            <div class="form-helper">
+                                <i class='bx bx-info-circle'></i> Kích thước đề xuất: 1200x630px
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
-  </div>
 </div>
 
-<!-- Confirm modal -->
-<div id="confirm" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,0.6);z-index:9999;align-items:center;justify-content:center"> 
-  <div style="background:linear-gradient(180deg,#071021,#0b1220);padding:18px;border-radius:10px;width:380px;box-shadow:0 14px 40px rgba(2,6,23,.7);text-align:center;color:var(--text)">
-    <h3 style="margin:0 0 8px">Xác nhận lưu bài viết?</h3>
-    <p style="color:var(--muted)">Hệ thống sẽ lưu bài viết vào cơ sở dữ liệu. Bạn có chắc chắn muốn lưu?</p>
-    <div style="display:flex;gap:10px;justify-content:center;margin-top:14px">
-      <button class="btn btn-primary" id="confirmSave">Đồng ý</button>
-      <button class="btn btn-ghost" onclick="closeConfirm()">Hủy</button>
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="confirmModal">
+    <div class="modal-content">
+        <div class="modal-icon info"><i class='bx bx-save'></i></div>
+        <div class="modal-title">Xác nhận lưu bài viết?</div>
+        <div class="modal-message">Bài viết sẽ được lưu vào hệ thống. Bạn có thể chỉnh sửa sau.</div>
+        <div class="modal-actions">
+            <button class="btn btn-success" onclick="submitForm()">
+                <i class='bx bx-check'></i> Đồng ý
+            </button>
+            <button class="btn btn-secondary" onclick="closeModal()">
+                <i class='bx bx-x'></i> Hủy
+            </button>
+        </div>
     </div>
-  </div>
 </div>
 
+<!-- TinyMCE -->
+<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
-// Dark toggle (simple)
-document.getElementById('toggleDark').addEventListener('click', function(){
-  document.documentElement.classList.toggle('dark');
-  // you can expand to remember preference via localStorage
+// TinyMCE Init
+if (typeof tinymce !== 'undefined') {
+    tinymce.init({
+        selector: '#editor',
+        height: 400,
+        plugins: 'code image link lists media table fullscreen autolink advlist',
+        toolbar: 'undo redo | bold italic underline | styleselect | alignleft aligncenter alignright | bullist numlist | link image | fullscreen code',
+        menubar: false,
+        branding: false,
+        content_style: 'body { font-family: "Segoe UI", sans-serif; font-size: 15px; color: #333; }'
+    });
+}
+
+// Auto generate slug
+document.getElementById('title').addEventListener('input', function() {
+    const slug = this.value
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd').replace(/Đ/g, 'd')
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .trim();
+    document.getElementById('slug').value = slug;
 });
 
-// TinyMCE init
-if (typeof tinymce !== 'undefined'){
-  tinymce.init({
-    selector: '#editor',
-    height: 420,
-    plugins: 'code image link lists media table fullscreen autolink advlist paste',
-    toolbar: 'undo redo | bold italic underline | styleselect | alignleft aligncenter alignright | bullist numlist | link image | fullscreen | code',
-    menubar: false,
-    branding: false,
-    paste_data_images: true
-  });
-}
-
-// Preview image
-function previewImage(e){
-  const f = e.target.files && e.target.files[0];
-  const t = document.getElementById('thumb');
-  if (f){
-    t.src = URL.createObjectURL(f);
-  }
-}
-function resetThumb(){
-  document.getElementById('thumb').src = '/mnt/data/5b0825ec-1d0a-4d14-85b8-a62519c32a9a.png';
-}
-
-// Confirmation modal
-function openConfirm(e){
-  e && e.preventDefault();
-  // validate before open
-  if (!validateBeforeSubmit()) return;
-  document.getElementById('confirm').style.display = 'flex';
-}
-function closeConfirm(){ document.getElementById('confirm').style.display='none'; }
-
-document.getElementById('confirmSave').addEventListener('click', function(){
-  // trigger tinymce save
-  if (typeof tinymce !== 'undefined') tinymce.triggerSave();
-  document.getElementById('articleForm').submit();
+// Character counter
+document.getElementById('excerpt').addEventListener('input', function() {
+    const count = this.value.length;
+    const counter = document.getElementById('excerptCount');
+    counter.textContent = count;
+    counter.parentElement.className = 'char-counter' + (count > 200 ? ' danger' : count > 150 ? ' warning' : '');
 });
 
-// Basic client validation
-function validateBeforeSubmit(){
-  if (typeof tinymce !== 'undefined') tinymce.triggerSave();
-  const title = document.getElementById('title').value.trim();
-  const cat = document.getElementById('category_id').value;
-  const author = document.getElementById('author_id').value;
-  if (!title){ alert('Vui lòng nhập tiêu đề.'); document.getElementById('title').focus(); return false; }
-  if (!cat){ alert('Vui lòng chọn danh mục.'); document.getElementById('category_id').focus(); return false; }
-  if (!author){ alert('Vui lòng chọn tác giả.'); document.getElementById('author_id').focus(); return false; }
-  return true;
+// Image preview
+const fileInput = document.getElementById('featured_image');
+const dropZone = document.getElementById('dropZone');
+const preview = document.getElementById('imagePreview');
+
+fileInput.addEventListener('change', handleFile);
+
+dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+});
+
+dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('dragover');
+});
+
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        handleFile();
+    }
+});
+
+function handleFile() {
+    const file = fileInput.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            preview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+        };
+        reader.readAsDataURL(file);
+    }
 }
+
+function resetForm() {
+    document.getElementById('articleForm').reset();
+    preview.innerHTML = '<div class="image-preview-placeholder"><i class="bx bx-image-alt"></i><span>Chưa có ảnh</span></div>';
+    if (typeof tinymce !== 'undefined') tinymce.get('editor').setContent('');
+}
+
+// Modal functions
+function confirmSubmit() {
+    // Validate
+    const title = document.getElementById('title').value.trim();
+    const category = document.getElementById('category_id').value;
+    const author = document.getElementById('author_id').value;
+    
+    if (!title) { alert('Vui lòng nhập tiêu đề!'); return; }
+    if (!category) { alert('Vui lòng chọn danh mục!'); return; }
+    if (!author) { alert('Vui lòng chọn tác giả!'); return; }
+    
+    document.getElementById('confirmModal').classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('confirmModal').classList.remove('active');
+}
+
+function submitForm() {
+    if (typeof tinymce !== 'undefined') tinymce.triggerSave();
+    document.getElementById('articleForm').submit();
+}
+
+// Close modal on outside click
+document.getElementById('confirmModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
 </script>
-
-</body>
-</html>

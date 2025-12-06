@@ -1,199 +1,317 @@
 <?php
 require_once('ketnoi.php');
-$sql = "SELECT * FROM authors ORDER BY author_id DESC";
+
+// Lấy danh sách tác giả (chỉ editor/biên tập viên)
+$sql = "SELECT u.*, COUNT(a.article_id) as article_count 
+        FROM users u 
+        LEFT JOIN articles a ON u.user_id = a.author_id 
+        WHERE u.role = 'editor'
+        GROUP BY u.user_id 
+        ORDER BY article_count DESC";
 $query = mysqli_query($ketnoi, $sql);
+$total = mysqli_num_rows($query);
 ?>
 
+<link rel="stylesheet" href="assets/css/admin-forms.css">
+
 <style>
-/* --- NỀN VÀ KHUNG CHUNG --- */
-.card {
-  background: linear-gradient(145deg, rgba(10,10,20,0.9), rgba(15,15,30,0.95));
-  border-radius: 16px;
-  border: 1px solid rgba(0,255,255,0.15);
-  box-shadow: 0 0 25px rgba(0,255,255,0.05);
-  color: #fff;
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
-/* Tiêu đề chính */
-h4 {
-  color: #00eaff;
-  font-weight: 700;
-  text-shadow: 0 0 12px #00eaff, 0 0 25px rgba(0,255,255,0.6);
+.stat-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: var(--transition-normal);
 }
 
-/* --- NÚT THÊM TÁC GIẢ --- */
-.btn-add {
-  color: #00f6ff;
-  border: 1px solid #00f6ff;
-  border-radius: 25px;
-  padding: 8px 20px;
-  font-weight: 600;
-  text-decoration: none;
-  font-size: 0.95rem;
-  box-shadow: 0 0 10px #00f6ff;
-  background: rgba(0,255,255,0.1);
-  transition: all 0.4s ease;
-  animation: pulseNeon 2.5s infinite;
-}
-.btn-add:hover {
-  background: #00f6ff;
-  color: #000;
-  box-shadow: 0 0 25px #00f6ff, 0 0 50px #00f6ff;
+.stat-card:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
 }
 
-@keyframes pulseNeon {
-  0%,100% { box-shadow: 0 0 10px #00f6ff, 0 0 20px rgba(0,255,255,0.4); }
-  50% { box-shadow: 0 0 25px #00f6ff, 0 0 50px rgba(0,255,255,0.8); }
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    background: rgba(168, 85, 247, 0.15);
+    color: var(--accent-purple);
 }
 
-/* --- BẢNG DANH SÁCH --- */
-.table {
-  color: #fff;
-  margin-bottom: 0;
-}
-.table th {
-  color: #00f6ff;
-  text-shadow: 0 0 8px #00f6ff;
-  font-weight: 600;
-  border-bottom: 1px solid rgba(0,255,255,0.15);
-  font-size: 0.95rem;
-  text-align: center;
-}
-.table td {
-  vertical-align: middle;
-  font-size: 0.9rem;
-  text-align: center;
-}
-.table tbody tr {
-  transition: 0.3s;
-}
-.table tbody tr:hover {
-  background: rgba(0,255,255,0.08);
-  box-shadow: 0 0 10px rgba(0,255,255,0.2);
+.stat-info h3 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
 }
 
-/* --- ẢNH ĐẠI DIỆN --- */
-.table img {
-  border-radius: 50%;
-  border: 2px solid rgba(0,255,255,0.6);
-  box-shadow: 0 0 12px rgba(0,255,255,0.3);
-  transition: 0.3s;
-}
-.table img:hover {
-  transform: scale(1.1);
-  box-shadow: 0 0 25px rgba(0,255,255,0.8);
+.stat-info p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 4px 0 0;
 }
 
-/* --- NÚT SỬA / XÓA --- */
-.btn-edit, .btn-delete {
-  border: none;
-  border-radius: 18px;
-  padding: 5px 14px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  transition: all 0.3s;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.btn-edit {
-  background: linear-gradient(90deg, #ffcc00, #ffee58);
-  color: #000;
-  box-shadow: 0 0 10px rgba(255,220,0,0.7);
-}
-.btn-edit:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 25px rgba(255,220,0,1);
-}
-.btn-delete {
-  background: linear-gradient(90deg, #ff3b3b, #ff7676);
-  color: #fff;
-  box-shadow: 0 0 10px rgba(255,60,60,0.7);
-}
-.btn-delete:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 25px rgba(255,80,80,1);
+.table-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
 }
 
-/* --- CARD HEADER --- */
-.card-header {
-  background: transparent;
-  border-bottom: 1px solid rgba(0,255,255,0.2);
-  color: #00f6ff;
-  font-weight: 600;
-  font-size: 1rem;
-  text-shadow: 0 0 8px #00f6ff;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.table-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
 }
-.card-header a {
-  color: #00f6ff;
-  font-size: 1.2rem;
-  text-shadow: 0 0 8px #00f6ff;
-  transition: 0.3s;
+
+.table-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--primary);
+    font-size: 16px;
+    font-weight: 600;
 }
-.card-header a:hover {
-  color: #fff;
-  text-shadow: 0 0 20px #00f6ff;
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th {
+    background: rgba(0, 212, 255, 0.05);
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 14px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-table td {
+    padding: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    color: var(--text-primary);
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.data-table tbody tr {
+    transition: var(--transition-fast);
+}
+
+.data-table tbody tr:hover {
+    background: rgba(0, 212, 255, 0.03);
+}
+
+.author-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.author-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-purple), var(--primary));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 16px;
+}
+
+.author-info h4 {
+    margin: 0 0 2px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.author-info span {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.role-badge.editor {
+    background: rgba(168, 85, 247, 0.15);
+    color: var(--accent-purple);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.count-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    background: rgba(0, 212, 255, 0.1);
+    color: var(--primary);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.action-btns {
+    display: flex;
+    gap: 8px;
+}
+
+.action-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    text-decoration: none;
+}
+
+.action-btn.edit:hover {
+    border-color: var(--accent-yellow);
+    color: var(--accent-yellow);
+    background: rgba(255, 213, 0, 0.1);
+}
+
+.action-btn.delete:hover {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+    background: rgba(255, 71, 87, 0.1);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
 }
 </style>
 
-<div class="content-wrapper">
-  <div class="container-xxl flex-grow-1 container-p-y">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h4 class="fw-bold mb-0"><i class='bx bx-user-circle'></i> Quản lý tác giả</h4>
-      <a href="?page_layout=themtacgia" class="btn-add">+ Thêm tác giả</a>
+<div class="admin-form-container">
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon"><i class='bx bx-user-pin'></i></div>
+            <div class="stat-info">
+                <h3><?= $total ?></h3>
+                <p>Tổng tác giả</p>
+            </div>
+        </div>
     </div>
 
-    <div class="card">
-      <div class="card-header">
-        <span><i class='bx bx-list-ul'></i> Danh sách tác giả</span>
-      </div>
+    <div class="table-card">
+        <div class="table-header">
+            <div class="table-title">
+                <i class='bx bx-id-card'></i>
+                <span>Danh sách tác giả</span>
+            </div>
+            <a href="?page_layout=themtacgia" class="btn btn-success">
+                <i class='bx bx-plus'></i> Thêm tác giả
+            </a>
+        </div>
 
-      <div class="table-responsive px-2 py-2">
-        <table class="table align-middle">
-          <thead>
-            <tr>
-              <th>STT</th>
-              <th>Tên tác giả</th>
-              <th>Email</th>
-              <th>Ảnh đại diện</th>
-              <th>Mô tả</th>
-              <th>Ngày tạo</th>
-              <th>Hành động</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php 
-            $i = 1;
-            while ($row = mysqli_fetch_assoc($query)) { ?>
-              <tr>
-                <td><strong><?php echo $i++; ?></strong></td>
-                <td><?php echo htmlspecialchars($row['name']); ?></td>
-                <td><?php echo htmlspecialchars($row['email']); ?></td>
-                <td>
-                  <?php if (!empty($row['avatar'])) { ?>
-                    <img src="../uploads/authors/<?php echo $row['avatar']; ?>" width="50" height="50" alt="Avatar">
-                  <?php } else { ?>
-                    <img src="../assets/img/avatars/default.png" width="50" height="50" alt="Avatar">
-                  <?php } ?>
-                </td>
-                <td><?php echo htmlspecialchars($row['bio']); ?></td>
-                <td><?php echo date('d/m/Y', strtotime($row['created_at'])); ?></td>
-                <td>
-                  <div class="d-flex justify-content-center gap-2">
-                    <a href="?page_layout=suatacgia&id=<?php echo $row['author_id']; ?>" class="btn-edit">✏️ Sửa</a>
-                    <a href="?page_layout=xoatacgia&id=<?php echo $row['author_id']; ?>" 
-                       onclick="return confirm('Bạn có chắc chắn muốn xóa tác giả này không?');" 
-                       class="btn-delete">🗑️ Xóa</a>
-                  </div>
-                </td>
-              </tr>
-            <?php } ?>
-          </tbody>
-        </table>
-      </div>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:60px">#</th>
+                        <th>Tác giả</th>
+                        <th>Email</th>
+                        <th>Vai trò</th>
+                        <th>Số bài viết</th>
+                        <th>Ngày tham gia</th>
+                        <th style="width:120px">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ($total > 0): ?>
+                        <?php $i = 1; while ($row = mysqli_fetch_assoc($query)): ?>
+                        <tr>
+                            <td><strong><?= $i++ ?></strong></td>
+                            <td>
+                                <div class="author-cell">
+                                    <div class="author-avatar"><?= strtoupper(substr($row['username'], 0, 1)) ?></div>
+                                    <div class="author-info">
+                                        <h4><?= htmlspecialchars($row['display_name'] ?: $row['username']) ?></h4>
+                                        <span>@<?= htmlspecialchars($row['username']) ?></span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td style="color:var(--primary)"><?= htmlspecialchars($row['email']) ?></td>
+                            <td>
+                                <span class="role-badge editor">
+                                    <i class='bx bx-edit'></i> Biên tập viên
+                                </span>
+                            </td>
+                            <td>
+                                <span class="count-badge">
+                                    <i class='bx bx-news'></i> <?= $row['article_count'] ?>
+                                </span>
+                            </td>
+                            <td><?= date('d/m/Y', strtotime($row['created_at'])) ?></td>
+                            <td>
+                                <div class="action-btns">
+                                    <a href="?page_layout=suatacgia&id=<?= $row['user_id'] ?>" class="action-btn edit" title="Sửa">
+                                        <i class='bx bx-edit'></i>
+                                    </a>
+                                    <a href="?page_layout=xoatacgia&id=<?= $row['user_id'] ?>" class="action-btn delete" title="Xóa"
+                                       onclick="return confirm('Xóa tác giả này?');">
+                                        <i class='bx bx-trash'></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="7">
+                                <div class="empty-state">
+                                    <i class='bx bx-user-pin'></i>
+                                    <p>Chưa có tác giả nào</p>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
-  </div>
 </div>

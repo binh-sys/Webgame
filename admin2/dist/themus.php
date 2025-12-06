@@ -1,361 +1,163 @@
 <?php
+// themus.php - Thêm người dùng mới
 require_once('ketnoi.php');
 
+$errors = [];
+
 if (isset($_POST['add_user'])) {
-    $username = mysqli_real_escape_string($ketnoi, $_POST['username']);
-    $display_name = mysqli_real_escape_string($ketnoi, $_POST['display_name']);
-    $email = mysqli_real_escape_string($ketnoi, $_POST['email']);
-    $role = mysqli_real_escape_string($ketnoi, $_POST['role']);
-    $password = mysqli_real_escape_string($ketnoi, $_POST['password']);
-    $confirm_password = mysqli_real_escape_string($ketnoi, $_POST['confirm_password']);
+    $username = trim($_POST['username'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $confirm_password = $_POST['confirm_password'] ?? '';
+    $display_name = trim($_POST['display_name'] ?? '');
+    $role = in_array($_POST['role'] ?? '', ['user', 'editor', 'admin']) ? $_POST['role'] : 'user';
 
-    // Kiểm tra mật khẩu nhập lại
-    if ($password !== $confirm_password) {
-        echo '<script>alert("❌ Mật khẩu xác nhận không khớp!");</script>';
-    } else {
-        // Kiểm tra xem username hoặc email đã tồn tại chưa
-        $check_sql = "SELECT * FROM users WHERE username='$username' OR email='$email'";
-        $check_result = mysqli_query($ketnoi, $check_sql);
+    if ($username === '') $errors[] = 'Tên đăng nhập không được để trống.';
+    if ($email === '') $errors[] = 'Email không được để trống.';
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Email không hợp lệ.';
+    if (strlen($password) < 6) $errors[] = 'Mật khẩu phải có ít nhất 6 ký tự.';
+    if ($password !== $confirm_password) $errors[] = 'Mật khẩu xác nhận không khớp.';
+    if ($display_name === '') $display_name = $username;
 
-        if (mysqli_num_rows($check_result) > 0) {
-            echo '<script>alert("⚠️ Tên đăng nhập hoặc email đã tồn tại!");</script>';
-        } else {
-            // Mã hóa mật khẩu
-            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            $created_at = date('Y-m-d H:i:s');
-
-            // Thêm user mới
-            $sql_insert = "INSERT INTO users (username, display_name, email, password, role, created_at)
-                           VALUES ('$username', '$display_name', '$email', '$hashed_password', '$role', '$created_at')";
-            
-            if (mysqli_query($ketnoi, $sql_insert)) {
-                echo '<script>alert("✅ Thêm người dùng thành công!");
-                      window.location.href="index.php?page_layout=danhsachnguoidung";</script>';
-                exit();
-            } else {
-                echo '<script>alert("❌ Lỗi khi thêm người dùng!");</script>';
-            }
+    // Kiểm tra trùng username/email
+    if (empty($errors)) {
+        $check = mysqli_prepare($ketnoi, "SELECT user_id FROM users WHERE username = ? OR email = ?");
+        mysqli_stmt_bind_param($check, 'ss', $username, $email);
+        mysqli_stmt_execute($check);
+        if (mysqli_stmt_get_result($check)->num_rows > 0) {
+            $errors[] = 'Tên đăng nhập hoặc email đã tồn tại.';
         }
+        mysqli_stmt_close($check);
+    }
+
+    if (empty($errors)) {
+        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+        $created_at = date('Y-m-d H:i:s');
+        
+        $stmt = mysqli_prepare($ketnoi, "INSERT INTO users (username, email, password, display_name, role, created_at) VALUES (?, ?, ?, ?, ?, ?)");
+        mysqli_stmt_bind_param($stmt, 'ssssss', $username, $email, $hashed_password, $display_name, $role, $created_at);
+        if (mysqli_stmt_execute($stmt)) {
+            echo '<script>alert("✅ Thêm người dùng thành công!"); window.location.href="index.php?page_layout=danhsachnguoidung";</script>';
+            exit;
+        } else {
+            $errors[] = 'Lỗi khi lưu vào cơ sở dữ liệu.';
+        }
+        mysqli_stmt_close($stmt);
     }
 }
 ?>
 
-<?php
-require_once('ketnoi.php');
+<link rel="stylesheet" href="assets/css/admin-forms.css">
 
-// =================== XỬ LÝ THÊM NGƯỜI DÙNG ===================
-if (isset($_POST['add_user'])) {
-    $username = mysqli_real_escape_string($ketnoi, $_POST['username']);
-    $display_name = mysqli_real_escape_string($ketnoi, $_POST['display_name']);
-    $email = mysqli_real_escape_string($ketnoi, $_POST['email']);
-    $role = mysqli_real_escape_string($ketnoi, $_POST['role']);
-    $password = mysqli_real_escape_string($ketnoi, $_POST['password']);
-    $confirm_password = mysqli_real_escape_string($ketnoi, $_POST['confirm_password']);
+<div class="admin-form-container">
+    <div class="admin-form-card">
+        <div class="admin-form-header">
+            <div>
+                <h2><i class='bx bx-user-plus'></i> Thêm người dùng mới</h2>
+                <div class="header-breadcrumb">
+                    <a href="index.php">Trang chủ</a> / <a href="?page_layout=danhsachnguoidung">Người dùng</a> / Thêm mới
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="?page_layout=danhsachnguoidung" class="btn btn-ghost">
+                    <i class='bx bx-arrow-back'></i> Quay lại
+                </a>
+            </div>
+        </div>
 
-    // Kiểm tra định dạng email
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        echo '<script>alert("⚠️ Email không hợp lệ!");</script>';
-        exit();
-    }
+        <div class="admin-form-body">
+            <?php if (!empty($errors)): ?>
+            <div class="alert alert-error">
+                <i class='bx bx-error-circle'></i>
+                <div class="alert-content">
+                    <div class="alert-title">Có lỗi xảy ra!</div>
+                    <ul style="margin:0;padding-left:18px;">
+                        <?php foreach ($errors as $err): ?>
+                            <li><?= htmlspecialchars($err) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
+            <?php endif; ?>
 
-    // Kiểm tra độ dài mật khẩu
-    if (strlen($password) < 6) {
-        echo '<script>alert("⚠️ Mật khẩu phải có ít nhất 6 ký tự!");</script>';
-        exit();
-    }
+            <form method="POST" id="userForm">
+                <input type="hidden" name="add_user" value="1">
+                
+                <div class="form-grid" style="grid-template-columns: 1fr 1fr; max-width: 900px;">
+                    <!-- Thông tin tài khoản -->
+                    <div class="form-section">
+                        <div class="form-section-title">
+                            <i class='bx bx-user'></i> Thông tin tài khoản
+                        </div>
 
-    // Kiểm tra mật khẩu nhập lại
-    if ($password !== $confirm_password) {
-        echo '<script>alert("❌ Mật khẩu xác nhận không khớp!");</script>';
-    } else {
-        // Kiểm tra username hoặc email đã tồn tại
-        $check_sql = "SELECT * FROM users WHERE username='$username' OR email='$email'";
-        $check_result = mysqli_query($ketnoi, $check_sql);
+                        <div class="form-group">
+                            <label class="form-label required">Tên đăng nhập</label>
+                            <input type="text" name="username" class="form-input" 
+                                   placeholder="VD: johndoe" 
+                                   value="<?= isset($username) ? htmlspecialchars($username) : '' ?>" required>
+                        </div>
 
-        if (mysqli_num_rows($check_result) > 0) {
-            echo '<script>alert("⚠️ Tên đăng nhập hoặc email đã tồn tại!");</script>';
-        } else {
-            // Mã hóa mật khẩu
-            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            $created_at = date('Y-m-d H:i:s');
+                        <div class="form-group">
+                            <label class="form-label required">Email</label>
+                            <input type="email" name="email" class="form-input" 
+                                   placeholder="VD: john@example.com" 
+                                   value="<?= isset($email) ? htmlspecialchars($email) : '' ?>" required>
+                        </div>
 
-            // Thêm user mới
-            $sql_insert = "INSERT INTO users (username, display_name, email, password, role, created_at)
-                           VALUES ('$username', '$display_name', '$email', '$hashed_password', '$role', '$created_at')";
-            
-            if (mysqli_query($ketnoi, $sql_insert)) {
+                        <div class="form-group">
+                            <label class="form-label">Tên hiển thị</label>
+                            <input type="text" name="display_name" class="form-input" 
+                                   placeholder="VD: John Doe" 
+                                   value="<?= isset($display_name) ? htmlspecialchars($display_name) : '' ?>">
+                            <div class="form-helper">
+                                <i class='bx bx-info-circle'></i> Để trống sẽ dùng tên đăng nhập
+                            </div>
+                        </div>
+                    </div>
 
-                // ⭐⭐⭐ TỰ ĐỘNG THÊM TÁC GIẢ NẾU LÀ "Biên tập" ⭐⭐⭐
-                if ($role === 'Biên tập') {
-                    $new_user_id = mysqli_insert_id($ketnoi);
-                    $sql_author = "INSERT INTO authors (user_id, name) 
-                                   VALUES ($new_user_id, '$display_name')";
-                    mysqli_query($ketnoi, $sql_author);
-                }
+                    <!-- Bảo mật & Quyền -->
+                    <div class="form-section">
+                        <div class="form-section-title">
+                            <i class='bx bx-lock'></i> Bảo mật & Quyền hạn
+                        </div>
 
-                // Popup thành công
-                echo '
-                <div id="success-popup" style="
-                    position:fixed;top:0;left:0;width:100%;height:100%;
-                    background:rgba(0,0,0,0.85);display:flex;
-                    justify-content:center;align-items:center;z-index:9999;
-                    color:#fff;font-family:Poppins,sans-serif;flex-direction:column;
-                    animation:fadeIn 0.4s ease;">
-                    <div style="
-                        background:#0a0a1a;padding:30px 50px;border-radius:15px;
-                        border:1px solid #00ffff88;text-align:center;
-                        box-shadow:0 0 25px #00ffff55;">
-                        <h2 style="color:#00ffff;">✅ Thêm người dùng thành công!</h2>
-                        <p style="margin-top:10px;">Hệ thống sẽ tự động quay lại danh sách sau <b id=\"countdown\">3</b> giây...</p>
+                        <div class="form-group">
+                            <label class="form-label required">Mật khẩu</label>
+                            <input type="password" name="password" class="form-input" 
+                                   placeholder="Tối thiểu 6 ký tự" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label required">Xác nhận mật khẩu</label>
+                            <input type="password" name="confirm_password" class="form-input" 
+                                   placeholder="Nhập lại mật khẩu" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Vai trò</label>
+                            <select name="role" class="form-select">
+                                <option value="user" <?= (isset($role) && $role == 'user') ? 'selected' : '' ?>>👤 Người dùng</option>
+                                <option value="editor" <?= (isset($role) && $role == 'editor') ? 'selected' : '' ?>>✏️ Biên tập viên</option>
+                                <option value="admin" <?= (isset($role) && $role == 'admin') ? 'selected' : '' ?>>🛡️ Quản trị viên</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
-                <style>
-                @keyframes fadeIn { from {opacity:0;} to {opacity:1;} }
-                @keyframes fadeOut { from {opacity:1;} to {opacity:0;} }
-                </style>
-                <script>
-                let counter = 3;
-                const countdown = document.getElementById("countdown");
-                const popup = document.getElementById("success-popup");
-                const timer = setInterval(() => {
-                    counter--;
-                    countdown.textContent = counter;
-                    if(counter === 0){
-                        clearInterval(timer);
-                        popup.style.animation = "fadeOut 0.4s ease";
-                        setTimeout(() => {
-                            window.location.href="index.php?page_layout=danhsachnguoidung";
-                        }, 400);
-                    }
-                },1000);
-                </script>';
-                exit();
-            } else {
-                echo '<script>alert("❌ Lỗi khi thêm người dùng!");</script>';
-            }
-        }
-    }
-}
 
+                <div class="form-divider"></div>
 
-// =================== XỬ LÝ AJAX KIỂM TRA TỒN TẠI ===================
-if (isset($_POST['check_username']) || isset($_POST['check_email'])) {
-    header('Content-Type: text/plain; charset=utf-8');
-    if (isset($_POST['check_username'])) {
-        $username = mysqli_real_escape_string($ketnoi, $_POST['check_username']);
-        $query = mysqli_query($ketnoi, "SELECT * FROM users WHERE username='$username'");
-        echo (mysqli_num_rows($query) > 0) ? 'exists' : 'ok';
-        exit;
-    }
-    if (isset($_POST['check_email'])) {
-        $email = mysqli_real_escape_string($ketnoi, $_POST['check_email']);
-        $query = mysqli_query($ketnoi, "SELECT * FROM users WHERE email='$email'");
-        echo (mysqli_num_rows($query) > 0) ? 'exists' : 'ok';
-        exit;
-    }
-}
-?>
-
-<!-- =================== GIAO DIỆN FORM =================== -->
-<div class="user-form-container">
-  <h2 class="form-title">✨ Thêm người dùng mới ✨</h2>
-  <form action="themus.php" method="POST" class="user-form">
-    <div class="form-group">
-      <label for="username">Tên đăng nhập</label>
-      <input type="text" id="username" name="username" required placeholder="Nhập tên đăng nhập...">
-      <small id="username-status" class="status-text"></small>
+                <div class="btn-group">
+                    <button type="submit" class="btn btn-success">
+                        <i class='bx bx-check'></i> Thêm người dùng
+                    </button>
+                    <button type="reset" class="btn btn-secondary">
+                        <i class='bx bx-reset'></i> Đặt lại
+                    </button>
+                    <a href="?page_layout=danhsachnguoidung" class="btn btn-ghost">
+                        <i class='bx bx-x'></i> Hủy
+                    </a>
+                </div>
+            </form>
+        </div>
     </div>
-
-    <div class="form-group">
-      <label for="display_name">Tên hiển thị</label>
-      <input type="text" id="display_name" name="display_name" required placeholder="Nhập tên hiển thị...">
-    </div>
-
-    <div class="form-group">
-      <label for="email">Email</label>
-      <input type="email" id="email" name="email" required placeholder="Nhập email...">
-      <small id="email-status" class="status-text"></small>
-    </div>
-
-    <div class="form-group">
-      <label for="password">Mật khẩu</label>
-      <input type="password" id="password" name="password" required placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)...">
-    </div>
-
-    <div class="form-group">
-      <label for="confirm_password">Xác nhận mật khẩu</label>
-      <input type="password" id="confirm_password" name="confirm_password" required placeholder="Nhập lại mật khẩu...">
-    </div>
-
-    <div class="form-group">
-      <label for="role">Vai trò</label>
-      <select id="role" name="role" required>
-        <option value="Người dùng">Người dùng</option>
-        <option value="Biên tập">Biên tập</option>
-        <option value="Admin">Admin</option>
-      </select>
-    </div>
-
-    <div class="form-actions">
-      <button type="submit" name="add_user" class="btn-submit">➕ Thêm người dùng</button>
-      <a href="index.php?page_layout=danhsachnguoidung" class="btn-cancel">↩️ Quay lại</a>
-    </div>
-  </form>
 </div>
-
-<!-- =================== SCRIPT KIỂM TRA AJAX =================== -->
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  const usernameInput = document.getElementById('username');
-  const emailInput = document.getElementById('email');
-  const usernameStatus = document.getElementById('username-status');
-  const emailStatus = document.getElementById('email-status');
-
-  usernameInput.addEventListener('blur', () => {
-    const val = usernameInput.value.trim();
-    if (val) {
-      fetch('themus.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'check_username=' + encodeURIComponent(val)
-      })
-      .then(res => res.text())
-      .then(data => {
-        if (data === 'exists') {
-          usernameStatus.textContent = '⚠️ Tên đăng nhập đã tồn tại';
-          usernameStatus.style.color = '#ff6666';
-        } else {
-          usernameStatus.textContent = '✅ Tên đăng nhập khả dụng';
-          usernameStatus.style.color = '#00ff99';
-        }
-      });
-    } else {
-      usernameStatus.textContent = '';
-    }
-  });
-
-  emailInput.addEventListener('blur', () => {
-    const val = emailInput.value.trim();
-    if (val) {
-      fetch('themus.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'check_email=' + encodeURIComponent(val)
-      })
-      .then(res => res.text())
-      .then(data => {
-        if (data === 'exists') {
-          emailStatus.textContent = '⚠️ Email đã được dùng';
-          emailStatus.style.color = '#ff6666';
-        } else {
-          emailStatus.textContent = '✅ Email hợp lệ';
-          emailStatus.style.color = '#00ff99';
-        }
-      });
-    } else {
-      emailStatus.textContent = '';
-    }
-  });
-});
-</script>
-
-<!-- =================== CSS GIAO DIỆN =================== -->
-<style>
-.user-form-container {
-  max-width: 550px;
-  margin: 60px auto;
-  background: rgba(10, 10, 25, 0.9);
-  border: 1px solid #00ffff40;
-  box-shadow: 0 0 25px #00ffff33;
-  border-radius: 20px;
-  padding: 30px 40px;
-  color: #fff;
-  font-family: 'Poppins', sans-serif;
-}
-
-.form-title {
-  text-align: center;
-  color: #00ffff;
-  text-shadow: 0 0 8px #00ffff, 0 0 20px #0099ff;
-  margin-bottom: 25px;
-  font-size: 22px;
-  letter-spacing: 1px;
-}
-
-.user-form .form-group {
-  margin-bottom: 18px;
-}
-
-.user-form label {
-  display: block;
-  margin-bottom: 6px;
-  font-weight: 600;
-  color: #00ffff;
-}
-
-.user-form input,
-.user-form select {
-  width: 100%;
-  padding: 10px 12px;
-  background: #0b0b1e;
-  border: 1px solid #00ffff55;
-  border-radius: 8px;
-  color: #fff;
-  font-size: 15px;
-  outline: none;
-  transition: all 0.2s ease;
-}
-
-.user-form input:focus,
-.user-form select:focus {
-  border-color: #00ffff;
-  box-shadow: 0 0 8px #00ffff;
-}
-
-.status-text {
-  font-size: 13px;
-  display: block;
-  margin-top: 5px;
-}
-
-.form-actions {
-  text-align: center;
-  margin-top: 25px;
-}
-
-.btn-submit,
-.btn-cancel {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 10px;
-  font-size: 15px;
-  cursor: pointer;
-  transition: 0.3s;
-  text-decoration: none;
-}
-
-.btn-submit {
-  background: linear-gradient(90deg, #00ffff, #0077ff);
-  color: #000;
-  font-weight: bold;
-  box-shadow: 0 0 10px #00ffff88;
-}
-
-.btn-submit:hover {
-  box-shadow: 0 0 20px #00ffffcc;
-  transform: translateY(-2px);
-}
-
-.btn-cancel {
-  background: #222;
-  color: #fff;
-  margin-left: 10px;
-  border: 1px solid #444;
-}
-
-.btn-cancel:hover {
-  background: #111;
-  border-color: #00ffff;
-  color: #00ffff;
-}
-</style>

@@ -1,174 +1,126 @@
 <?php
+// suathegame.php - Sửa thẻ game
 require_once('ketnoi.php');
 
-// Lấy dữ liệu theo ID
-if (isset($_GET['id'])) {
-    $id = intval($_GET['id']);
-    $result = mysqli_query($ketnoi, "SELECT * FROM tags WHERE tag_id = $id");
-    $tag = mysqli_fetch_assoc($result);
-    if (!$tag) {
-        echo "<script>alert('Không tìm thấy thẻ game!');
-        window.location.href='index.php?page_layout=danhsachthegame';</script>";
-        exit;
-    }
-} else {
-    echo "<script>alert('Thiếu ID!');
-    window.location.href='index.php?page_layout=danhsachthegame';</script>";
-    exit;
+if (!isset($_GET['id'])) {
+    echo '<script>alert("Thiếu ID!"); window.location.href="index.php?page_layout=danhsachthegame";</script>';
+    exit();
 }
 
-// Cập nhật dữ liệu
-if (isset($_POST['update_tag'])) {
-    $name = mysqli_real_escape_string($ketnoi, $_POST['name']);
-    $slug = mysqli_real_escape_string($ketnoi, $_POST['slug']);
-    $description = mysqli_real_escape_string($ketnoi, $_POST['description']);
+$id = intval($_GET['id']);
+$result = mysqli_query($ketnoi, "SELECT * FROM tags WHERE tag_id = $id");
 
-    // Kiểm tra trùng slug (ngoại trừ chính nó)
-    $check = mysqli_query($ketnoi, "SELECT * FROM tags WHERE slug='$slug' AND tag_id!=$id");
-    if (mysqli_num_rows($check) > 0) {
-        echo "<script>alert('❌ Slug đã tồn tại!');</script>";
-    } else {
-        $sql = "UPDATE tags SET name='$name', slug='$slug', description='$description' WHERE tag_id=$id";
-        if (mysqli_query($ketnoi, $sql)) {
-            echo "<script>alert('✅ Cập nhật thành công!');
-            window.location.href='index.php?page_layout=danhsachthegame';</script>";
+if (!$result || mysqli_num_rows($result) == 0) {
+    echo '<script>alert("Không tìm thấy thẻ game!"); window.location.href="index.php?page_layout=danhsachthegame";</script>';
+    exit();
+}
+
+$tag = mysqli_fetch_assoc($result);
+$errors = [];
+
+if (isset($_POST['update_tag'])) {
+    $name = trim($_POST['name'] ?? '');
+    $slug = trim($_POST['slug'] ?? '');
+
+    if ($name === '') $errors[] = 'Tên thẻ không được để trống.';
+    if ($slug === '') $errors[] = 'Slug không được để trống.';
+
+    if (empty($errors)) {
+        $check = mysqli_prepare($ketnoi, "SELECT tag_id FROM tags WHERE slug = ? AND tag_id != ?");
+        mysqli_stmt_bind_param($check, 'si', $slug, $id);
+        mysqli_stmt_execute($check);
+        if (mysqli_stmt_get_result($check)->num_rows > 0) {
+            $errors[] = 'Slug đã tồn tại.';
+        }
+        mysqli_stmt_close($check);
+    }
+
+    if (empty($errors)) {
+        $stmt = mysqli_prepare($ketnoi, "UPDATE tags SET name=?, slug=? WHERE tag_id=?");
+        mysqli_stmt_bind_param($stmt, 'ssi', $name, $slug, $id);
+        if (mysqli_stmt_execute($stmt)) {
+            echo '<script>alert("✅ Cập nhật thành công!"); window.location.href="index.php?page_layout=danhsachthegame";</script>';
             exit;
         } else {
-            echo "<script>alert('❌ Lỗi khi cập nhật!');</script>";
+            $errors[] = 'Lỗi khi cập nhật.';
         }
+        mysqli_stmt_close($stmt);
     }
+    
+    $tag['name'] = $name;
+    $tag['slug'] = $slug;
 }
 ?>
 
-<!-- Giao diện form chỉnh sửa -->
-<div class="content-wrapper d-flex align-items-center justify-content-center" style="min-height:100vh;">
-  <div class="edit-tag-card">
-    <div class="edit-header text-center mb-4">
-      <h3><i class="bx bx-edit-alt me-2"></i> Chỉnh sửa Thẻ Game</h3>
-      <p>Cập nhật thông tin thẻ để đồng bộ dữ liệu bài viết & tag game.</p>
+<link rel="stylesheet" href="assets/css/admin-forms.css">
+
+<div class="admin-form-container">
+    <div class="admin-form-card">
+        <div class="admin-form-header">
+            <div>
+                <h2><i class='bx bx-edit'></i> Chỉnh sửa thẻ game</h2>
+                <div class="header-breadcrumb">
+                    <a href="index.php">Trang chủ</a> / <a href="?page_layout=danhsachthegame">Thẻ game</a> / Chỉnh sửa
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="?page_layout=danhsachthegame" class="btn btn-ghost">
+                    <i class='bx bx-arrow-back'></i> Quay lại
+                </a>
+            </div>
+        </div>
+
+        <div class="admin-form-body">
+            <?php if (!empty($errors)): ?>
+            <div class="alert alert-error">
+                <i class='bx bx-error-circle'></i>
+                <div class="alert-content">
+                    <div class="alert-title">Có lỗi xảy ra!</div>
+                    <ul style="margin:0;padding-left:18px;">
+                        <?php foreach ($errors as $err): ?>
+                            <li><?= htmlspecialchars($err) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <form method="POST">
+                <input type="hidden" name="update_tag" value="1">
+                
+                <div class="form-section" style="max-width:600px;">
+                    <div class="form-section-title">
+                        <i class='bx bx-hash'></i> Thông tin thẻ game
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label required">Tên thẻ</label>
+                        <input type="text" name="name" class="form-input" 
+                               value="<?= htmlspecialchars($tag['name']) ?>" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label required">Slug (URL)</label>
+                        <input type="text" name="slug" class="form-input" 
+                               value="<?= htmlspecialchars($tag['slug']) ?>" required>
+                    </div>
+
+                    <div class="form-divider"></div>
+
+                    <div class="btn-group">
+                        <button type="submit" class="btn btn-primary">
+                            <i class='bx bx-save'></i> Lưu thay đổi
+                        </button>
+                        <a href="?page_layout=xoathegame&id=<?= $id ?>" class="btn btn-danger" 
+                           onclick="return confirm('Xóa thẻ game này?');">
+                            <i class='bx bx-trash'></i> Xóa
+                        </a>
+                        <a href="?page_layout=danhsachthegame" class="btn btn-ghost">
+                            <i class='bx bx-x'></i> Hủy
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
-
-    <form method="POST" class="neon-form">
-      <div class="form-group mb-4">
-        <label for="name"><i class="bx bx-purchase-tag me-2"></i>Tên thẻ</label>
-        <input type="text" name="name" id="name" class="form-control" 
-          value="<?php echo htmlspecialchars($tag['name']); ?>" required>
-      </div>
-
-      <div class="form-group mb-4">
-        <label for="slug"><i class="bx bx-link me-2"></i>Slug</label>
-        <input type="text" name="slug" id="slug" class="form-control" 
-          value="<?php echo htmlspecialchars($tag['slug']); ?>" required>
-      </div>
-
-      <div class="form-group mb-4">
-        <label for="description"><i class="bx bx-text me-2"></i>Mô tả</label>
-        <textarea name="description" id="description" class="form-control" rows="3"><?php echo htmlspecialchars($tag['description']); ?></textarea>
-      </div>
-
-      <div class="text-center mt-4">
-        <button type="submit" name="update_tag" class="btn-update">
-          <i class="bx bx-save me-2"></i> Cập nhật
-        </button>
-        <a href="index.php?page_layout=danhsachthegame" class="btn-cancel">
-          <i class="bx bx-arrow-back me-1"></i> Quay lại
-        </a>
-      </div>
-    </form>
-  </div>
 </div>
-
-<style>
-  body {
-    background: radial-gradient(circle at top left, #0d1b2a, #000814);
-    color: #e6f1ff;
-    font-family: 'Poppins', sans-serif;
-  }
-
-  .edit-tag-card {
-    width: 600px;
-    background: linear-gradient(145deg, rgba(20, 30, 48, 0.9), rgba(36, 59, 85, 0.95));
-    border-radius: 20px;
-    padding: 45px 50px;
-    box-shadow: 0 0 25px rgba(0, 255, 255, 0.15), inset 0 0 10px rgba(0, 255, 255, 0.05);
-    backdrop-filter: blur(8px);
-    transition: all 0.3s ease;
-  }
-
-  .edit-tag-card:hover {
-    box-shadow: 0 0 40px rgba(0, 255, 255, 0.25), inset 0 0 15px rgba(0, 255, 255, 0.1);
-    transform: translateY(-3px);
-  }
-
-  .edit-header h3 {
-    color: #00eaff;
-    text-shadow: 0 0 15px #00eaff;
-    font-weight: 600;
-  }
-
-  .edit-header p {
-    color: #9bbfd1;
-    font-size: 0.95rem;
-  }
-
-  label {
-    font-weight: 500;
-    color: #cfe9ff;
-    display: block;
-    margin-bottom: 6px;
-  }
-
-  .form-control {
-    width: 100%;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(0, 234, 255, 0.3);
-    border-radius: 12px;
-    color: #e6f1ff;
-    padding: 12px 14px;
-    font-size: 1rem;
-    transition: all 0.3s ease;
-  }
-
-  .form-control:focus {
-    outline: none;
-    border-color: #00eaff;
-    box-shadow: 0 0 15px rgba(0, 234, 255, 0.5);
-  }
-
-  textarea.form-control {
-    resize: none;
-  }
-
-  .btn-update {
-    background: linear-gradient(90deg, #00bcd4, #1de9b6);
-    border: none;
-    border-radius: 30px;
-    padding: 12px 40px;
-    color: #fff;
-    font-size: 1.05rem;
-    font-weight: 600;
-    box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
-    transition: all 0.3s ease;
-  }
-
-  .btn-update:hover {
-    box-shadow: 0 0 30px rgba(0, 255, 255, 0.8);
-    transform: scale(1.05);
-  }
-
-  .btn-cancel {
-    display: inline-block;
-    margin-left: 15px;
-    color: #a5b9c9;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 25px;
-    padding: 10px 25px;
-    text-decoration: none;
-    transition: 0.3s;
-  }
-
-  .btn-cancel:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
-  }
-</style>

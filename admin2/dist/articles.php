@@ -2,267 +2,382 @@
 require_once('ketnoi.php');
 
 // Lấy danh sách bài viết cùng tên danh mục và tác giả
-$sql = "SELECT a.article_id, a.title, a.slug, a.status, a.views, a.created_at, 
-        c.name AS category_name, au.name AS author_name
+$sql = "SELECT a.article_id, a.title, a.slug, a.status, a.views, a.created_at, a.featured_image,
+        c.name AS category_name, u.display_name AS author_name
         FROM articles a
         LEFT JOIN categories c ON a.category_id = c.category_id
-        LEFT JOIN authors au ON a.author_id = au.author_id
+        LEFT JOIN users u ON a.author_id = u.user_id
         ORDER BY a.created_at DESC";
 $query = mysqli_query($ketnoi, $sql);
+
+// Đếm thống kê
+$total = mysqli_num_rows($query);
+$published = mysqli_fetch_assoc(mysqli_query($ketnoi, "SELECT COUNT(*) as c FROM articles WHERE status='published'"))['c'];
+$draft = mysqli_fetch_assoc(mysqli_query($ketnoi, "SELECT COUNT(*) as c FROM articles WHERE status='draft'"))['c'];
 ?>
 
+<link rel="stylesheet" href="assets/css/admin-forms.css">
+
 <style>
-  /* ===================== GLOBAL ===================== */
-  body {
-    font-family: 'Segoe UI', sans-serif;
-    background: #0a0a14;
-    color: #fff;
-  }
+/* Stats Cards */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
 
-  h4 {
-    color: #00eaff;
-    font-weight: 700;
-    text-shadow: 0 0 12px #00eaff, 0 0 25px rgba(0, 255, 255, 0.6);
-  }
+.stat-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: var(--transition-normal);
+}
 
-  /* ===================== CARD ===================== */
-  .card {
-    background: linear-gradient(145deg, rgba(10, 10, 20, 0.9), rgba(15, 15, 30, 0.95));
-    border-radius: 16px;
-    border: 1px solid rgba(0, 255, 255, 0.15);
-    box-shadow: 0 0 25px rgba(0, 255, 255, 0.05);
-  }
+.stat-card:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
+}
 
-  .card-header {
-    background: transparent;
-    border-bottom: 1px solid rgba(0, 255, 255, 0.2);
-    color: #00f6ff;
-    font-weight: 600;
-    font-size: 1rem;
-    text-shadow: 0 0 8px #00f6ff;
-    padding: 12px 16px;
-  }
-
-  /* ===================== BUTTON ADD ===================== */
-  .btn-add {
-    color: #00f6ff;
-    border: 1px solid #00f6ff;
-    border-radius: 25px;
-    padding: 8px 20px;
-    font-weight: 600;
-    text-decoration: none;
-    font-size: 0.95rem;
-    background: rgba(0, 255, 255, 0.1);
-    box-shadow: 0 0 10px #00f6ff;
-    transition: all 0.4s ease;
-    animation: pulseNeon 2.5s infinite;
-  }
-
-  .btn-add:hover {
-    background: #00f6ff;
-    color: #000;
-    box-shadow: 0 0 25px #00f6ff, 0 0 50px #00f6ff;
-  }
-
-  /* ===================== TABLE ===================== */
-  .table {
-    color: #fff;
-    margin-bottom: 0;
-  }
-
-  .table th {
-    color: #00f6ff;
-    text-shadow: 0 0 8px #00f6ff;
-    font-weight: 600;
-    border-bottom: 1px solid rgba(0, 255, 255, 0.15);
-    font-size: 0.95rem;
-  }
-
-  .table td {
-    vertical-align: middle;
-    font-size: 0.9rem;
-  }
-
-  .table tbody tr {
-    transition: 0.3s;
-  }
-
-  .table tbody tr:hover {
-    background: rgba(0, 255, 255, 0.08);
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
-  }
-
-  /* ===================== BADGE ===================== */
-  .badge {
-    font-weight: 700;
-    border-radius: 15px;
-    padding: 6px 10px;
-    font-size: 0.8rem;
-  }
-
-  .badge.bg-success {
-    background: linear-gradient(90deg, #00ff99, #00ffaa);
-    color: #000;
-    box-shadow: 0 0 15px rgba(0, 255, 180, 0.9);
-  }
-
-  .badge.bg-secondary {
-    background: #666;
-    color: #fff;
-    box-shadow: 0 0 10px rgba(160, 160, 160, 0.5);
-  }
-
-  /* Nút hành động mới – Icon neon pro */
-  .btn-action {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: var(--radius-md);
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(6px);
-    transition: 0.25s;
+    font-size: 24px;
+}
+
+.stat-icon.blue { background: rgba(0, 212, 255, 0.15); color: var(--primary); }
+.stat-icon.green { background: rgba(0, 255, 136, 0.15); color: var(--accent-green); }
+.stat-icon.orange { background: rgba(255, 149, 0, 0.15); color: var(--accent-orange); }
+
+.stat-info h3 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.stat-info p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 4px 0 0;
+}
+
+/* Table Card */
+.table-card {
+    background: linear-gradient(145deg, var(--bg-card), #080c12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+}
+
+.table-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.table-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--primary);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.table-title i {
+    font-size: 20px;
+}
+
+/* Data Table */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th {
+    background: rgba(0, 212, 255, 0.05);
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 14px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-table td {
+    padding: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    color: var(--text-primary);
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.data-table tbody tr {
+    transition: var(--transition-fast);
+}
+
+.data-table tbody tr:hover {
+    background: rgba(0, 212, 255, 0.03);
+}
+
+/* Article Title Cell */
+.article-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.article-thumb {
+    width: 50px;
+    height: 50px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    border: 1px solid var(--border-color);
+}
+
+.article-thumb-placeholder {
+    width: 50px;
+    height: 50px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 20px;
+}
+
+.article-info h4 {
+    margin: 0 0 4px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    max-width: 280px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.article-info span {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* Status Badge */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-badge.published {
+    background: rgba(0, 255, 136, 0.15);
+    color: var(--accent-green);
+    border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.status-badge.draft {
+    background: rgba(255, 149, 0, 0.15);
+    color: var(--accent-orange);
+    border: 1px solid rgba(255, 149, 0, 0.3);
+}
+
+/* Action Buttons */
+.action-btns {
+    display: flex;
+    gap: 8px;
+}
+
+.action-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
     cursor: pointer;
-  }
+    transition: var(--transition-fast);
+    text-decoration: none;
+}
 
-  /* Icon style */
-  .btn-action svg {
-    width: 22px;
-    height: 22px;
-    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.4));
-    transition: 0.3s;
-  }
+.action-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(0, 212, 255, 0.1);
+}
 
-  /* ================== DUYỆT ================== */
-  .btn-approve {
-    border-color: rgba(0, 255, 120, 0.4);
-    box-shadow: 0 0 8px rgba(0, 255, 120, 0.2);
-  }
+.action-btn.approve:hover {
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+    background: rgba(0, 255, 136, 0.1);
+}
 
-  .btn-approve:hover {
-    transform: scale(1.12);
-    box-shadow: 0 0 18px rgba(0, 255, 120, 0.9);
-  }
+.action-btn.edit:hover {
+    border-color: var(--accent-yellow);
+    color: var(--accent-yellow);
+    background: rgba(255, 213, 0, 0.1);
+}
 
-  .btn-approve:hover svg {
-    filter: drop-shadow(0 0 8px #00ff88);
-  }
+.action-btn.delete:hover {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+    background: rgba(255, 71, 87, 0.1);
+}
 
-  /* ================== SỬA ================== */
-  .btn-edit {
-    border-color: rgba(255, 210, 0, 0.4);
-    box-shadow: 0 0 8px rgba(255, 210, 0, 0.2);
-  }
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+}
 
-  .btn-edit:hover {
-    transform: scale(1.12);
-    box-shadow: 0 0 18px rgba(255, 210, 0, 1);
-  }
+.empty-state i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
 
-  .btn-edit:hover svg {
-    filter: drop-shadow(0 0 10px #ffdd33);
-  }
-
-  /* ================== XÓA ================== */
-  .btn-delete {
-    border-color: rgba(255, 60, 60, 0.4);
-    box-shadow: 0 0 8px rgba(255, 60, 60, 0.25);
-  }
-
-  .btn-delete:hover {
-    transform: scale(1.12);
-    box-shadow: 0 0 20px rgba(255, 60, 60, 1);
-  }
-
-  .btn-delete:hover svg {
-    filter: drop-shadow(0 0 10px #ff4444);
-  }
+.empty-state p {
+    margin: 0;
+}
 </style>
 
-<div class="content-wrapper">
-  <div class="container-xxl flex-grow-1 container-p-y">
-    <!-- HEADER -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h4 class="fw-bold mb-0"><i class='bx bx-news'></i> Quản lý bài viết</h4>
-      <a href="?page_layout=them_baiviet" class="btn-add">+ Thêm bài viết</a>
+<div class="admin-form-container">
+    <!-- Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon blue"><i class='bx bx-news'></i></div>
+            <div class="stat-info">
+                <h3><?= $total ?></h3>
+                <p>Tổng bài viết</p>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon green"><i class='bx bx-check-circle'></i></div>
+            <div class="stat-info">
+                <h3><?= $published ?></h3>
+                <p>Đã xuất bản</p>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon orange"><i class='bx bx-time'></i></div>
+            <div class="stat-info">
+                <h3><?= $draft ?></h3>
+                <p>Bản nháp</p>
+            </div>
+        </div>
     </div>
 
-    <!-- CARD TABLE -->
-    <div class="card">
-      <div class="card-header"><i class='bx bx-list-ul'></i> Danh sách bài viết</div>
-      <div class="table-responsive px-2 py-2">
-        <table class="table align-middle text-center">
-          <thead>
-            <tr>
-              <th>STT</th>
-              <th>Tiêu đề</th>
-              <th>Danh mục</th>
-              <th>Tác giả</th>
-              <th>Trạng thái</th>
-              <th>Lượt xem</th>
-              <th>Ngày tạo</th>
-              <th>Hành động</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php
-            $i = 1;
-            while ($row = mysqli_fetch_assoc($query)) { ?>
-              <tr>
-                <td><strong><?php echo $i++; ?></strong></td>
-                <td class="text-start"><?php echo htmlspecialchars($row['title']); ?></td>
-                <td><?php echo $row['category_name'] ?: '<em>Không có</em>'; ?></td>
-                <td><?php echo $row['author_name'] ?: '<em>Ẩn danh</em>'; ?></td>
-                <td>
-                  <?php if ($row['status'] == 'published') { ?>
-                    <span class="badge bg-success">ĐÃ XUẤT BẢN</span>
-                  <?php } else { ?>
-                    <span class="badge bg-secondary">NHÁP</span>
-                  <?php } ?>
-                </td>
-                <td><?php echo $row['views']; ?></td>
-                <td><?php echo date('d/m/Y H:i', strtotime($row['created_at'])); ?></td>
-                <td>
-                  <div class="d-flex justify-content-center gap-2">
+    <!-- Table -->
+    <div class="table-card">
+        <div class="table-header">
+            <div class="table-title">
+                <i class='bx bx-list-ul'></i>
+                <span>Danh sách bài viết</span>
+            </div>
+            <a href="?page_layout=them_baiviet" class="btn btn-success">
+                <i class='bx bx-plus'></i> Thêm bài viết
+            </a>
+        </div>
 
-                    <?php if ($row['status'] != 'published') { ?>
-                      <a href="?page_layout=duyet_baiviet&id=<?php echo $row['article_id']; ?>"
-                        onclick="return confirm('Bạn có chắc chắn muốn duyệt bài viết này không?');"
-                        class="btn-action btn-approve" title="Duyệt bài">
-                        <!-- ICON DUYỆT -->
-                        <svg fill="#00ff88" viewBox="0 0 24 24">
-                          <path d="M9 16.2l-3.5-3.5-1.4 1.5L9 19 20 8l-1.4-1.4z" />
-                        </svg>
-                      </a>
-                    <?php } ?>
-
-                    <a href="?page_layout=sua_baiviet&id=<?php echo $row['article_id']; ?>"
-                      class="btn-action btn-edit" title="Sửa bài">
-                      <!-- ICON SỬA -->
-                      <svg fill="#ffd700" viewBox="0 0 24 24">
-                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
-                      </svg>
-                    </a>
-
-                    <a href="?page_layout=xoa_baiviet&id=<?php echo $row['article_id']; ?>"
-                      onclick="return confirm('Bạn có chắc chắn muốn xóa bài viết này không?');"
-                      class="btn-action btn-delete" title="Xóa bài">
-                      <!-- ICON XÓA -->
-                      <svg fill="#ff4444" viewBox="0 0 24 24">
-                        <path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zm3.46-9.12l1.06-1.06L12 10.94l1.47-1.47 1.06 1.06L13.06 12l1.47 1.47-1.06 1.06L12 13.06l-1.47 1.47-1.06-1.06L10.94 12l-1.48-1.12zM15.5 4l-1-1h-5l-1 1H5v2h14V4z" />
-                      </svg>
-                    </a>
-
-                  </div>
-                </td>
-
-              </tr>
-            <?php } ?>
-          </tbody>
-        </table>
-      </div>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:50px">#</th>
+                        <th>Bài viết</th>
+                        <th>Danh mục</th>
+                        <th>Tác giả</th>
+                        <th>Trạng thái</th>
+                        <th>Lượt xem</th>
+                        <th>Ngày tạo</th>
+                        <th style="width:140px">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (mysqli_num_rows($query) > 0): ?>
+                        <?php $i = 1; while ($row = mysqli_fetch_assoc($query)): ?>
+                        <tr>
+                            <td><strong><?= $i++ ?></strong></td>
+                            <td>
+                                <div class="article-cell">
+                                    <?php if (!empty($row['featured_image'])): ?>
+                                        <img src="../../game2/uploads/<?= htmlspecialchars($row['featured_image']) ?>" class="article-thumb" alt="">
+                                    <?php else: ?>
+                                        <div class="article-thumb-placeholder"><i class='bx bx-image'></i></div>
+                                    <?php endif; ?>
+                                    <div class="article-info">
+                                        <h4><?= htmlspecialchars($row['title']) ?></h4>
+                                        <span>/<?= htmlspecialchars($row['slug']) ?></span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><?= $row['category_name'] ?: '<em style="color:var(--text-muted)">Chưa phân loại</em>' ?></td>
+                            <td><?= $row['author_name'] ?: '<em style="color:var(--text-muted)">Ẩn danh</em>' ?></td>
+                            <td>
+                                <span class="status-badge <?= $row['status'] ?>">
+                                    <i class='bx <?= $row['status'] == 'published' ? 'bx-check' : 'bx-time' ?>'></i>
+                                    <?= $row['status'] == 'published' ? 'Đã xuất bản' : 'Nháp' ?>
+                                </span>
+                            </td>
+                            <td><i class='bx bx-show' style="opacity:0.5"></i> <?= number_format($row['views']) ?></td>
+                            <td><?= date('d/m/Y', strtotime($row['created_at'])) ?></td>
+                            <td>
+                                <div class="action-btns">
+                                    <?php if ($row['status'] != 'published'): ?>
+                                    <a href="?page_layout=duyet_baiviet&id=<?= $row['article_id'] ?>" 
+                                       class="action-btn approve" title="Duyệt bài"
+                                       onclick="return confirm('Duyệt bài viết này?');">
+                                        <i class='bx bx-check'></i>
+                                    </a>
+                                    <?php endif; ?>
+                                    <a href="?page_layout=sua_baiviet&id=<?= $row['article_id'] ?>" 
+                                       class="action-btn edit" title="Sửa">
+                                        <i class='bx bx-edit'></i>
+                                    </a>
+                                    <a href="?page_layout=xoa_baiviet&id=<?= $row['article_id'] ?>" 
+                                       class="action-btn delete" title="Xóa"
+                                       onclick="return confirm('Xóa bài viết này?');">
+                                        <i class='bx bx-trash'></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="8">
+                                <div class="empty-state">
+                                    <i class='bx bx-news'></i>
+                                    <p>Chưa có bài viết nào</p>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
-  </div>
 </div>
